@@ -55,6 +55,25 @@ Para testar o cadastro sem depender de envio de email:
 
 Para producao, reative a confirmacao de email e configure um provedor SMTP proprio se o volume de usuarios passar do limite do email padrao do Supabase.
 
+## Acessos de teste
+
+As contas Auth de teste existentes tiveram uma senha temporaria comum definida para QA. A senha e os emails completos ficam fora do Git, no `.env` local:
+
+```env
+TEST_ADMIN_EMAIL=
+TEST_STUDENT_EMAILS=
+TEST_USERS_PASSWORD=
+```
+
+Contas atuais:
+
+| Username | Papel |
+| --- | --- |
+| `muriloelc` | `admin` |
+| `batata` | `student` |
+| `murilo` | `student` |
+| `user_a286b799` | `student` |
+
 ## Deploy em producao
 
 1. Crie o projeto Supabase de producao.
