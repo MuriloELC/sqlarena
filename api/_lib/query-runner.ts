@@ -31,6 +31,7 @@ function getPool() {
 
   globalThis.__sqlArenaRunnerPool = new Pool({
     connectionString,
+    ssl: { rejectUnauthorized: false },
     max: 4,
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 5_000,

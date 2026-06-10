@@ -1,13 +1,23 @@
 import { createClient } from "@supabase/supabase-js";
 import { getBearerToken, HttpError } from "./http";
+import { queryAdminDb } from "./admin-db";
 
 let client: ReturnType<typeof createClient> | null = null;
+
+function getSupabaseApiKey() {
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (serviceRoleKey && (serviceRoleKey.startsWith("eyJ") || serviceRoleKey.startsWith("sb_secret_"))) {
+    return serviceRoleKey;
+  }
+
+  return process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+}
 
 export function getSupabaseAdmin() {
   if (client) return client;
 
   const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = getSupabaseApiKey();
   if (!url || !key) {
     throw new HttpError(500, "Supabase server-side nao configurado.");
   }
@@ -36,15 +46,11 @@ export async function authenticateRequest(req: any) {
 
 export async function requireAdmin(req: any) {
   const user = await authenticateRequest(req);
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase
-    .from("profiles")
-    .select("id, role")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) throw error;
-  const profile = data as { role?: string } | null;
+  const { rows } = await queryAdminDb<{ role: "student" | "admin" }>(
+    "select role from public.profiles where id = $1 limit 1",
+    [user.id],
+  );
+  const profile = rows[0] ?? null;
   if (!profile || profile.role !== "admin") {
     throw new HttpError(403, "Acesso restrito a administradores.");
   }

@@ -217,6 +217,14 @@ alter table attempts enable row level security;
 alter table user_challenge_progress enable row level security;
 alter table point_events enable row level security;
 alter table platform_events enable row level security;
+alter table challenge_data.customers enable row level security;
+alter table challenge_data.categories enable row level security;
+alter table challenge_data.products enable row level security;
+alter table challenge_data.orders enable row level security;
+alter table challenge_data.order_items enable row level security;
+alter table challenge_data.payments enable row level security;
+alter table challenge_data.shipments enable row level security;
+alter table challenge_data.financial_transactions enable row level security;
 
 create policy "profiles are public for learning data" on profiles for select using (true);
 create policy "users insert own profile" on profiles for insert with check (auth.uid() = id);
@@ -420,3 +428,12 @@ $$;
 grant usage on schema challenge_data to challenge_runner;
 grant select on all tables in schema challenge_data to challenge_runner;
 alter default privileges in schema challenge_data grant select on tables to challenge_runner;
+
+create policy challenge_runner_read_customers on challenge_data.customers for select to challenge_runner using (true);
+create policy challenge_runner_read_categories on challenge_data.categories for select to challenge_runner using (true);
+create policy challenge_runner_read_products on challenge_data.products for select to challenge_runner using (true);
+create policy challenge_runner_read_orders on challenge_data.orders for select to challenge_runner using (true);
+create policy challenge_runner_read_order_items on challenge_data.order_items for select to challenge_runner using (true);
+create policy challenge_runner_read_payments on challenge_data.payments for select to challenge_runner using (true);
+create policy challenge_runner_read_shipments on challenge_data.shipments for select to challenge_runner using (true);
+create policy challenge_runner_read_financial_transactions on challenge_data.financial_transactions for select to challenge_runner using (true);

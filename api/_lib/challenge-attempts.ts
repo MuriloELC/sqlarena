@@ -1,4 +1,4 @@
-import { getSupabaseAdmin } from "./supabase-admin";
+import { queryAdminDb } from "./admin-db";
 
 export type DbChallenge = {
   id: string;
@@ -17,14 +17,18 @@ export type AttemptRecord = {
 };
 
 export async function fetchActiveChallenge(challengeId: string) {
-  const { data, error } = await getSupabaseAdmin()
-    .from("challenges")
-    .select("id, title, expected_sql, allowed_tables, base_points, is_active")
-    .eq("id", challengeId)
-    .maybeSingle();
+  const { rows } = await queryAdminDb<DbChallenge>(
+    `
+      select id, title, expected_sql, allowed_tables, base_points, is_active
+      from public.challenges
+      where id = $1
+        and is_active = true
+      limit 1
+    `,
+    [challengeId],
+  );
 
-  if (error) throw error;
-  return data as DbChallenge | null;
+  return rows[0] ?? null;
 }
 
 export async function recordChallengeAttempt(input: {
@@ -35,15 +39,26 @@ export async function recordChallengeAttempt(input: {
   executionTimeMs: number;
   errorMessage?: string | null;
 }) {
-  const { data, error } = await (getSupabaseAdmin() as any).rpc("record_challenge_attempt", {
-    p_user_id: input.userId,
-    p_challenge_id: input.challengeId,
-    p_submitted_sql: input.submittedSql,
-    p_is_correct: input.isCorrect,
-    p_execution_time_ms: input.executionTimeMs,
-    p_error_message: input.errorMessage ?? null,
-  });
+  const { rows } = await queryAdminDb<{ result: AttemptRecord }>(
+    `
+      select public.record_challenge_attempt(
+        $1::uuid,
+        $2::uuid,
+        $3::text,
+        $4::boolean,
+        $5::int,
+        $6::text
+      ) as result
+    `,
+    [
+      input.userId,
+      input.challengeId,
+      input.submittedSql,
+      input.isCorrect,
+      input.executionTimeMs,
+      input.errorMessage ?? null,
+    ],
+  );
 
-  if (error) throw error;
-  return data as AttemptRecord;
+  return rows[0].result;
 }

@@ -38,7 +38,9 @@ CHALLENGE_RUNNER_DATABASE_URL=
 
 Regra importante: `CHALLENGE_RUNNER_DATABASE_URL` deve usar uma role somente leitura, com acesso apenas ao schema `challenge_data`. O frontend nunca deve receber essa variavel.
 
-No frontend Vite, use `VITE_SUPABASE_PUBLISHABLE_KEY` ou `VITE_SUPABASE_ANON_KEY`. Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, senha do banco ou `CHALLENGE_RUNNER_DATABASE_URL` em variaveis com prefixo `VITE_`.
+`CHALLENGE_DATABASE_URL` fica somente no backend e executa consultas privilegiadas da API. `SUPABASE_SERVICE_ROLE_KEY` e opcional neste projeto; se nao for configurada, a API usa a publishable key apenas para validar o token do usuario no Supabase Auth.
+
+No frontend Vite, use `VITE_SUPABASE_PUBLISHABLE_KEY` ou `VITE_SUPABASE_ANON_KEY`. Nunca coloque `SUPABASE_SERVICE_ROLE_KEY`, senha do banco ou qualquer `DATABASE_URL` em variaveis com prefixo `VITE_`.
 
 ### Cadastro em desenvolvimento
 
@@ -69,11 +71,14 @@ alter role challenge_runner login password 'senha-forte-gerada';
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
+CHALLENGE_DATABASE_URL=
 CHALLENGE_RUNNER_DATABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 ```
 
-6. Faça deploy pela Vercel. O `vercel.json` ja define o build Vite, output `dist`, fallback SPA e funcoes Node em `/api`.
+6. Faca deploy pela Vercel. O `vercel.json` ja define o build Vite, output `dist`, fallback SPA e funcoes Node em `/api`.
+
+`SUPABASE_SERVICE_ROLE_KEY` e opcional. Ao usar o Supabase pooler com uma role customizada, o usuario da URL deve incluir o project ref, por exemplo `challenge_runner.<project-ref>`, embora a role no Postgres continue sendo `challenge_runner`.
 
 ## Estado atual
 
