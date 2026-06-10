@@ -1,4 +1,4 @@
-import { queryAdminDb } from "./admin-db";
+import { queryAdminDb } from "./admin-db.js";
 
 export type DbChallenge = {
   id: string;

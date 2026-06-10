@@ -1,7 +1,7 @@
-import { SqlValidationError } from "../../../src/shared/sql-security";
-import { assertMethod, readBody, sendError } from "../../_lib/http";
-import { runExpectedQuery } from "../../_lib/query-runner";
-import { requireAdmin } from "../../_lib/supabase-admin";
+import { SqlValidationError } from "../../../src/shared/sql-security.js";
+import { assertMethod, readBody, sendError } from "../../_lib/http.js";
+import { runExpectedQuery } from "../../_lib/query-runner.js";
+import { requireAdmin } from "../../_lib/supabase-admin.js";
 
 type TestQueryBody = {
   sql?: string;

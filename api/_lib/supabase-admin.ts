@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
-import { getBearerToken, HttpError } from "./http";
-import { queryAdminDb } from "./admin-db";
+import { getBearerToken, HttpError } from "./http.js";
+import { queryAdminDb } from "./admin-db.js";
 
 let client: ReturnType<typeof createClient> | null = null;
 

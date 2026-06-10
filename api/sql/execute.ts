@@ -1,8 +1,8 @@
-import { SqlValidationError } from "../../src/shared/sql-security";
-import { fetchActiveChallenge, recordChallengeAttempt } from "../_lib/challenge-attempts";
-import { assertMethod, HttpError, readBody, sendError } from "../_lib/http";
-import { runChallengeQuery, runExpectedQuery, sameResult, type QueryResult } from "../_lib/query-runner";
-import { authenticateRequest } from "../_lib/supabase-admin";
+import { SqlValidationError } from "../../src/shared/sql-security.js";
+import { fetchActiveChallenge, recordChallengeAttempt } from "../_lib/challenge-attempts.js";
+import { assertMethod, HttpError, readBody, sendError } from "../_lib/http.js";
+import { runChallengeQuery, runExpectedQuery, sameResult, type QueryResult } from "../_lib/query-runner.js";
+import { authenticateRequest } from "../_lib/supabase-admin.js";
 
 type ExecuteBody = {
   challenge_id?: string;

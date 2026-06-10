@@ -1,8 +1,8 @@
 import { performance } from "node:perf_hooks";
 import { createRequire } from "node:module";
 import type { Pool as PoolType } from "pg";
-import { sanitizeSql, validateChallengeSql } from "../../src/shared/sql-security";
-import { HttpError } from "./http";
+import { sanitizeSql, validateChallengeSql } from "../../src/shared/sql-security.js";
+import { HttpError } from "./http.js";
 
 const require = createRequire(import.meta.url);
 const { Pool } = require("pg") as typeof import("pg");

@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 import type { Pool as PoolType, QueryResult, QueryResultRow } from "pg";
-import { HttpError } from "./http";
+import { HttpError } from "./http.js";
 
 const require = createRequire(import.meta.url);
 const { Pool } = require("pg") as typeof import("pg");
