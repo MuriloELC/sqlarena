@@ -10,7 +10,7 @@
   }
 
   if (normalized.includes("unsupported provider") || normalized.includes("provider is not enabled")) {
-    return "Este provedor social ainda nao esta habilitado no Supabase. Ative Google/GitHub em Authentication > Providers.";
+    return "Este metodo de login nao esta habilitado. Use email e senha.";
   }
 
   if (normalized.includes("invalid") && normalized.includes("email")) {

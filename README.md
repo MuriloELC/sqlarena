@@ -24,6 +24,7 @@ Os artefatos iniciais estao em:
 
 - `supabase/schema.sql`: tabelas da aplicacao, schema `challenge_data`, views, RLS e grants do runner.
 - `supabase/seed.sql`: trilha, modulos, desafios e dataset pequeno de e-commerce.
+- `supabase/migrations/`: migrations incrementais para producao, incluindo LGPD, Storage de avatars e roles admin.
 
 Variaveis esperadas para a integracao real com Supabase/Backend:
 
@@ -31,6 +32,7 @@ Variaveis esperadas para a integracao real com Supabase/Backend:
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
 VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_PRIVACY_CONTACT_EMAIL=
 SUPABASE_SERVICE_ROLE_KEY=
 CHALLENGE_DATABASE_URL=
 CHALLENGE_RUNNER_DATABASE_URL=
@@ -54,6 +56,16 @@ Para testar o cadastro sem depender de envio de email:
 4. Salve e tente criar a conta novamente.
 
 Para producao, reative a confirmacao de email e configure um provedor SMTP proprio se o volume de usuarios passar do limite do email padrao do Supabase.
+
+### Migration aplicada
+
+Para aplicar a migration incremental no banco configurado no `.env`, use:
+
+```bash
+node scripts/apply-production-migration.cjs
+```
+
+O script le `CHALLENGE_DATABASE_URL` do `.env`, aplica `supabase/migrations/20260610000100_production_features_lgpd.sql` e valida campos legais, bucket `avatars` e policies de Storage.
 
 ## Acessos de teste
 
@@ -84,12 +96,13 @@ Contas atuais:
 alter role challenge_runner login password 'senha-forte-gerada';
 ```
 
-4. Configure Auth no Supabase: email/senha, Google, GitHub, URL da Vercel e redirects.
+4. Configure Auth no Supabase: email/senha, URL da Vercel e redirect permitido `https://jogo-sql.vercel.app/reset-password`. Google/GitHub foram removidos do app e devem ficar desativados no painel.
 5. Configure na Vercel as variaveis:
 
 ```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_PRIVACY_CONTACT_EMAIL=
 CHALLENGE_DATABASE_URL=
 CHALLENGE_RUNNER_DATABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
@@ -101,9 +114,10 @@ SUPABASE_SERVICE_ROLE_KEY=
 
 ## Estado atual
 
-- Autenticacao usa Supabase Auth com email/senha, Google e GitHub.
+- Autenticacao usa Supabase Auth com email/senha, recuperacao de senha por email e aceite obrigatorio de Termos/Privacidade.
 - Trilha, desafios, perfil, ranking semanal/geral e eventos leem dados reais do Supabase.
 - `POST /api/sql/execute` autentica o usuario, valida SQL `SELECT`/`WITH`, executa com role read-only, compara com a query esperada e registra tentativa/pontos.
 - Pontuacao real e idempotente acontece em `record_challenge_attempt`, com `attempts`, `user_challenge_progress`, `point_events` e `profiles.total_points`.
-- Admin lista/cria/edita desafios, testa query esperada server-side e gerencia eventos de pontuacao.
+- Admin lista/cria/edita modulos e desafios, testa query esperada server-side, gerencia eventos e promove/remove admins via API server-side.
+- Perfil permite editar nome de exibicao e foto; avatars ficam no bucket Supabase Storage `avatars`.
 - O dataset inicial ainda e pequeno; para beta, expanda `supabase/seed.sql` com mais dados realistas e novos desafios.

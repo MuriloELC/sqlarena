@@ -3,6 +3,10 @@ import { AppLayout } from "./components/AppLayout";
 import { AdminRoute, ProtectedRoute } from "./components/ProtectedRoute";
 import { Login } from "./pages/Login";
 import { Register } from "./pages/Register";
+import { ForgotPassword } from "./pages/ForgotPassword";
+import { ResetPassword } from "./pages/ResetPassword";
+import { Terms } from "./pages/Terms";
+import { Privacy } from "./pages/Privacy";
 import { Dashboard } from "./pages/Dashboard";
 import { Trail } from "./pages/Trail";
 import { Challenge } from "./pages/Challenge";
@@ -12,6 +16,8 @@ import { AdminDashboard } from "./pages/AdminDashboard";
 import { AdminChallenges } from "./pages/AdminChallenges";
 import { AdminChallengeEdit } from "./pages/AdminChallengeEdit";
 import { AdminEvents } from "./pages/AdminEvents";
+import { AdminModules } from "./pages/AdminModules";
+import { AdminUsers } from "./pages/AdminUsers";
 
 export const router = createBrowserRouter([
   {
@@ -25,6 +31,22 @@ export const router = createBrowserRouter([
   {
     path: "/register",
     element: <Register />,
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPassword />,
+  },
+  {
+    path: "/reset-password",
+    element: <ResetPassword />,
+  },
+  {
+    path: "/terms",
+    element: <Terms />,
+  },
+  {
+    path: "/privacy",
+    element: <Privacy />,
   },
   {
     element: <ProtectedRoute />,
@@ -41,10 +63,12 @@ export const router = createBrowserRouter([
             element: <AdminRoute />,
             children: [
               { path: "/admin", element: <AdminDashboard /> },
+              { path: "/admin/modules", element: <AdminModules /> },
               { path: "/admin/challenges", element: <AdminChallenges /> },
               { path: "/admin/challenges/new", element: <AdminChallengeEdit /> },
               { path: "/admin/challenges/edit/:id", element: <AdminChallengeEdit /> },
               { path: "/admin/events", element: <AdminEvents /> },
+              { path: "/admin/users", element: <AdminUsers /> },
             ],
           },
         ],

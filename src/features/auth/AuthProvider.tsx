@@ -1,6 +1,7 @@
-﻿import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session, User } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
+import { PRIVACY_VERSION, TERMS_VERSION } from "../legal/constants";
 
 export type AppProfile = {
   id: string;
@@ -9,6 +10,10 @@ export type AppProfile = {
   avatar_url: string | null;
   role: "student" | "admin";
   total_points: number;
+  terms_accepted_at: string | null;
+  terms_version: string | null;
+  privacy_accepted_at: string | null;
+  privacy_version: string | null;
 };
 
 type SignUpInput = {
@@ -16,6 +21,7 @@ type SignUpInput = {
   username: string;
   email: string;
   password: string;
+  acceptedTerms: boolean;
 };
 
 type SignUpResult = {
@@ -29,12 +35,13 @@ type AuthContextValue = {
   loading: boolean;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   signUp: (input: SignUpInput) => Promise<SignUpResult>;
-  signInWithProvider: (provider: "google" | "github") => Promise<void>;
   signOut: () => Promise<void>;
+  acceptLatestTerms: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | null>(null);
+const profileSelect = "id, username, display_name, avatar_url, role, total_points, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -44,17 +51,39 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const ensureProfile = async (user: User) => {
     const username = user.user_metadata?.username || `user_${user.id.slice(0, 8)}`;
     const displayName = user.user_metadata?.display_name || user.email?.split("@")[0] || "Usuario";
+    const acceptedAt = user.user_metadata?.terms_accepted_at ?? null;
 
-    const { data, error } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("profiles")
-      .upsert({
+      .select(profileSelect)
+      .eq("id", user.id)
+      .maybeSingle();
+
+    if (existingError) throw existingError;
+    if (existing) return existing as AppProfile;
+
+    const insert = await supabase
+      .from("profiles")
+      .insert({
         id: user.id,
         username,
         display_name: displayName,
         avatar_url: user.user_metadata?.avatar_url ?? null,
-        role: "student",
-      }, { onConflict: "id" })
-      .select("id, username, display_name, avatar_url, role, total_points")
+        terms_accepted_at: acceptedAt,
+        terms_version: acceptedAt ? user.user_metadata?.terms_version ?? TERMS_VERSION : null,
+        privacy_accepted_at: user.user_metadata?.privacy_accepted_at ?? acceptedAt,
+        privacy_version: (user.user_metadata?.privacy_accepted_at ?? acceptedAt) ? user.user_metadata?.privacy_version ?? PRIVACY_VERSION : null,
+      })
+      .select(profileSelect)
+      .single();
+
+    if (!insert.error) return insert.data as AppProfile;
+    if (insert.error.code !== "23505") throw insert.error;
+
+    const { data, error } = await supabase
+      .from("profiles")
+      .select(profileSelect)
+      .eq("id", user.id)
       .single();
 
     if (error) throw error;
@@ -64,7 +93,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadProfile = async (user: User) => {
     const { data, error } = await supabase
       .from("profiles")
-      .select("id, username, display_name, avatar_url, role, total_points")
+      .select(profileSelect)
       .eq("id", user.id)
       .maybeSingle();
 
@@ -112,7 +141,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
     },
-    async signUp({ displayName, username, email, password }) {
+    async signUp({ displayName, username, email, password, acceptedTerms }) {
+      if (!acceptedTerms) {
+        throw new Error("E necessario aceitar os Termos de Uso e a Politica de Privacidade.");
+      }
+
+      const acceptedAt = new Date().toISOString();
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -120,6 +154,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           data: {
             display_name: displayName,
             username,
+            terms_accepted_at: acceptedAt,
+            terms_version: TERMS_VERSION,
+            privacy_accepted_at: acceptedAt,
+            privacy_version: PRIVACY_VERSION,
           },
         },
       });
@@ -131,18 +169,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return { needsEmailConfirmation: Boolean(data.user && !data.session) };
     },
-    async signInWithProvider(provider) {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider,
-        options: {
-          redirectTo: `${window.location.origin}/dashboard`,
-        },
-      });
-      if (error) throw error;
-    },
     async signOut() {
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
+    },
+    async acceptLatestTerms() {
+      const { data } = await supabase.auth.getUser();
+      if (!data.user) throw new Error("Sessao expirada. Entre novamente.");
+
+      const acceptedAt = new Date().toISOString();
+      const { data: nextProfile, error } = await supabase
+        .from("profiles")
+        .update({
+          terms_accepted_at: acceptedAt,
+          terms_version: TERMS_VERSION,
+          privacy_accepted_at: acceptedAt,
+          privacy_version: PRIVACY_VERSION,
+          updated_at: acceptedAt,
+        })
+        .eq("id", data.user.id)
+        .select(profileSelect)
+        .single();
+
+      if (error) throw error;
+      setProfile(nextProfile as AppProfile);
     },
     refreshProfile,
   }), [loading, profile, session]);

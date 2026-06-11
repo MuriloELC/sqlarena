@@ -1,5 +1,5 @@
 import { createRequire } from "node:module";
-import type { Pool as PoolType, QueryResult, QueryResultRow } from "pg";
+import type { Pool as PoolType, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { HttpError } from "./http.js";
 
 const require = createRequire(import.meta.url);
@@ -31,4 +31,13 @@ function getAdminPool() {
 
 export async function queryAdminDb<T extends QueryResultRow = QueryResultRow>(sql: string, params: unknown[] = []): Promise<QueryResult<T>> {
   return getAdminPool().query<T>(sql, params);
+}
+
+export async function withAdminDbClient<T>(callback: (client: PoolClient) => Promise<T>): Promise<T> {
+  const client = await getAdminPool().connect();
+  try {
+    return await callback(client);
+  } finally {
+    client.release();
+  }
 }

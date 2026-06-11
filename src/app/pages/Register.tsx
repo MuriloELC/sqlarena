@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { Database, Loader2 } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -14,6 +14,7 @@ export function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,12 +28,16 @@ export function Register() {
       setError("A confirmacao de senha nao confere.");
       return;
     }
+    if (!acceptedTerms) {
+      setError("Aceite os Termos de Uso e a Politica de Privacidade para criar a conta.");
+      return;
+    }
 
     try {
       setError(null);
       setSuccess(null);
       setLoading(true);
-      const result = await signUp({ displayName, username, email, password });
+      const result = await signUp({ displayName, username, email, password, acceptedTerms });
       if (result.needsEmailConfirmation) {
         setSuccess("Conta criada. Confira seu email para confirmar o cadastro antes de entrar.");
         return;
@@ -79,6 +84,20 @@ export function Register() {
             <span className="text-sm font-medium text-zinc-900">Confirmar senha</span>
             <Input type="password" value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} />
           </label>
+          <label className="flex items-start gap-3 rounded-md border border-zinc-200 bg-white p-3 text-sm text-zinc-600">
+            <input
+              type="checkbox"
+              className="mt-1 h-4 w-4 rounded border-zinc-300 text-indigo-600"
+              checked={acceptedTerms}
+              onChange={(event) => setAcceptedTerms(event.target.checked)}
+            />
+            <span>
+              Li e aceito os{" "}
+              <Link to="/terms" target="_blank" className="font-semibold text-indigo-600 hover:underline">Termos de Uso</Link>
+              {" "}e a{" "}
+              <Link to="/privacy" target="_blank" className="font-semibold text-indigo-600 hover:underline">Politica de Privacidade</Link>.
+            </span>
+          </label>
           <Button className="h-11 w-full" onClick={handleRegister} disabled={loading}>
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Criar conta
@@ -92,7 +111,3 @@ export function Register() {
     </div>
   );
 }
-
-
-
-

@@ -55,6 +55,7 @@ export type UserProfile = {
   name: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   totalXp: number;
   weeklyXp: number;
   completedChallengeIds: string[];
@@ -65,6 +66,8 @@ export type RankingUser = {
   name: string;
   username: string;
   avatar: string;
+  avatarUrl?: string | null;
   totalXp: number;
   weeklyXp: number;
+  completedChallenges?: number;
 };

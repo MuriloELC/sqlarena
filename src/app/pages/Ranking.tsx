@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Crown, Loader2, Trophy } from "lucide-react";
 import { Badge, Card } from "../components/ui/InputCardBadge";
+import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { formatXp } from "../../features/learning/utils/format";
 import { fetchCurrentProfile, fetchRanking } from "../../features/learning/data/supabase-catalog";
 import { useAuth } from "../../features/auth/AuthProvider";
@@ -72,7 +73,10 @@ export function Ranking() {
                 <tr key={rankingUser.id} className={`transition-colors hover:bg-zinc-50/50 ${isCurrentUser ? "bg-indigo-50/30" : ""}`}>
                   <td className="px-6 py-4 text-center">{position <= 3 ? <Crown className={`mx-auto h-5 w-5 ${position === 1 ? "text-yellow-500" : position === 2 ? "text-zinc-400" : "text-amber-600"}`} /> : <span className="font-bold text-zinc-400">{position}</span>}</td>
                   <td className="flex items-center gap-4 px-6 py-4">
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${isCurrentUser ? "bg-indigo-600 text-white" : "bg-zinc-100 text-zinc-500"}`}>{rankingUser.avatar}</div>
+                    <Avatar className={`h-10 w-10 border ${isCurrentUser ? "border-indigo-200" : "border-zinc-200"}`}>
+                      {rankingUser.avatarUrl && <AvatarImage src={rankingUser.avatarUrl} alt={rankingUser.name} />}
+                      <AvatarFallback className={`text-sm font-bold ${isCurrentUser ? "bg-indigo-600 text-white" : "bg-zinc-100 text-zinc-500"}`}>{rankingUser.avatar}</AvatarFallback>
+                    </Avatar>
                     <p className={`flex items-center gap-2 font-bold ${isCurrentUser ? "text-indigo-700" : "text-zinc-900"}`}>
                       {rankingUser.name}
                       {isCurrentUser && <Badge variant="secondary" className="bg-indigo-100 px-1.5 py-0 text-[10px] text-indigo-700">Voce</Badge>}

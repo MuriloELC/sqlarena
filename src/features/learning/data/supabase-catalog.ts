@@ -52,6 +52,7 @@ export async function fetchCurrentProfile(userId: string): Promise<UserProfile> 
     name: profile.display_name,
     username: profile.username,
     avatar: profile.display_name?.charAt(0)?.toUpperCase() || "U",
+    avatarUrl: profile.avatar_url,
     totalXp: profile.total_points ?? 0,
     weeklyXp,
     completedChallengeIds: (completed ?? []).map((item) => item.challenge_id as string),
@@ -145,6 +146,7 @@ export async function fetchRanking(scope: "overall" | "weekly") {
       name: item.display_name,
       username: item.username,
       avatar: item.display_name?.charAt(0)?.toUpperCase() || "U",
+      avatarUrl: item.avatar_url,
       totalXp: Number(item.points ?? 0),
       weeklyXp: 0,
       completedChallenges: Number(item.completed_challenges ?? 0),
@@ -159,7 +161,7 @@ export async function fetchRanking(scope: "overall" | "weekly") {
 
   if (error) throw error;
 
-  const grouped = new Map<string, { id: string; name: string; username: string; avatar: string; weeklyXp: number; totalXp: number }>();
+  const grouped = new Map<string, { id: string; name: string; username: string; avatar: string; avatarUrl: string | null; weeklyXp: number; totalXp: number }>();
   for (const row of data ?? []) {
     const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     if (!profile) continue;
@@ -168,6 +170,7 @@ export async function fetchRanking(scope: "overall" | "weekly") {
       name: profile.display_name,
       username: profile.username,
       avatar: profile.display_name?.charAt(0)?.toUpperCase() || "U",
+      avatarUrl: profile.avatar_url,
       weeklyXp: 0,
       totalXp: 0,
     };
@@ -196,6 +199,7 @@ export function profileToUser(profile: AppProfile | null): UserProfile {
     name: profile?.display_name ?? "Usuario",
     username: profile?.username ?? "usuario",
     avatar: profile?.display_name?.charAt(0)?.toUpperCase() ?? "U",
+    avatarUrl: profile?.avatar_url ?? null,
     totalXp: profile?.total_points ?? 0,
     weeklyXp: 0,
     completedChallengeIds: [],
