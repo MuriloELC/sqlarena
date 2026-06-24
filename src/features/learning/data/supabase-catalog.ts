@@ -1,4 +1,4 @@
-import type { Challenge, Difficulty, LearningModule, ModuleStatus, PlatformEvent, UserProfile } from "../../../shared/types/sql-arena";
+import type { Challenge, ChallengeType, Difficulty, LearningModule, ModuleStatus, PlatformEvent, UserProfile } from "../../../shared/types/sql-arena";
 import { supabase } from "../../../lib/supabase";
 import type { AppProfile } from "../../auth/AuthProvider";
 
@@ -12,10 +12,14 @@ type DbChallenge = {
   module_id: string;
   title: string;
   slug: string;
+  type: ChallengeType;
   difficulty: Difficulty;
   prompt: string;
+  starter_sql: string | null;
   expected_sql: string;
   allowed_tables: string[];
+  setup_sql: string | null;
+  validation_sql: string | null;
   base_points: number;
   explanation: string | null;
   sort_order: number;
@@ -76,7 +80,7 @@ export async function fetchLearningModules(userId: string): Promise<LearningModu
   const [{ data: modules, error }, { data: progress, error: progressError }] = await Promise.all([
     supabase
       .from("modules")
-      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, difficulty, prompt, expected_sql, allowed_tables, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
+      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
       .eq("is_active", true)
       .eq("challenges.is_active", true)
       .order("sort_order", { ascending: true })
@@ -207,10 +211,13 @@ export function profileToUser(profile: AppProfile | null): UserProfile {
 }
 
 function mapChallenge(challenge: DbChallenge, completedIds: Set<string>): Challenge {
+  const type = challenge.type ?? "free_select";
+
   return {
     id: challenge.id,
     slug: challenge.slug,
     moduleId: challenge.module_id,
+    type,
     title: challenge.title,
     statement: challenge.prompt,
     orderingHint: undefined,
@@ -218,13 +225,37 @@ function mapChallenge(challenge: DbChallenge, completedIds: Set<string>): Challe
     difficulty: challenge.difficulty,
     baseXp: challenge.base_points,
     status: completedIds.has(challenge.id) ? "completed" : "available",
-    starterSql: `SELECT \nFROM ${challenge.allowed_tables?.[0] ?? "customers"}\nLIMIT 10;`,
+    starterSql: challenge.starter_sql ?? getDefaultStarterSql(type, challenge.allowed_tables ?? []),
     expectedSql: challenge.expected_sql,
+    setupSql: challenge.setup_sql,
+    validationSql: challenge.validation_sql,
     expectedColumns: [],
     expectedRows: [],
     allowedTables: challenge.allowed_tables ?? [],
     hints: [...(challenge.challenge_hints ?? [])].sort((a, b) => a.hint_order - b.hint_order).map((hint) => hint.content),
   };
+}
+
+function getDefaultStarterSql(type: ChallengeType, allowedTables: string[]) {
+  const table = allowedTables[0] ?? "customers";
+
+  switch (type) {
+    case "insert_rows":
+      return `INSERT INTO ${table} (...)\nVALUES (...);`;
+    case "update_rows":
+      return `UPDATE ${table}\nSET ...\nWHERE ...;`;
+    case "delete_rows":
+      return `DELETE FROM ${table}\nWHERE ...;`;
+    case "create_table":
+      return `CREATE TABLE ${table} (\n  id uuid PRIMARY KEY\n);`;
+    case "alter_table":
+      return `ALTER TABLE ${table}\nADD COLUMN ...;`;
+    case "drop_table":
+      return `DROP TABLE ${table};`;
+    case "free_select":
+    default:
+      return `SELECT \nFROM ${table}\nLIMIT 10;`;
+  }
 }
 
 function applyUnlockRules(modules: LearningModule[]): LearningModule[] {

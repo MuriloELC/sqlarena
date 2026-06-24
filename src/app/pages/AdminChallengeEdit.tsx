@@ -9,6 +9,7 @@ import { challengeSchema } from "../../features/learning/data/catalog";
 import { testExpectedSql } from "../../features/sql-runner/api-runner";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { supabase } from "../../lib/supabase";
+import type { ChallengeType } from "../../shared/types/sql-arena";
 
 type ModuleOption = {
   id: string;
@@ -19,7 +20,7 @@ type ChallengeForm = {
   title: string;
   slug: string;
   moduleId: string;
-  type: string;
+  type: ChallengeType;
   difficulty: "easy" | "medium" | "hard" | "special";
   basePoints: number;
   prompt: string;
@@ -43,6 +44,30 @@ const emptyForm: ChallengeForm = {
   isActive: false,
 };
 
+const challengeTypeOptions: { value: ChallengeType; label: string }[] = [
+  { value: "free_select", label: "SELECT" },
+  { value: "insert_rows", label: "INSERT" },
+  { value: "update_rows", label: "UPDATE" },
+  { value: "delete_rows", label: "DELETE" },
+  { value: "create_table", label: "CREATE TABLE" },
+  { value: "alter_table", label: "ALTER TABLE" },
+  { value: "drop_table", label: "DROP TABLE" },
+];
+
+const starterDefaults: Record<ChallengeType, string> = {
+  free_select: "SELECT \nFROM customers\nLIMIT 10;",
+  insert_rows: "INSERT INTO products (...)\nVALUES (...);",
+  update_rows: "UPDATE products\nSET ...\nWHERE ...;",
+  delete_rows: "DELETE FROM products\nWHERE ...;",
+  create_table: "CREATE TABLE suppliers (\n  id uuid PRIMARY KEY\n);",
+  alter_table: "ALTER TABLE products\nADD COLUMN ...;",
+  drop_table: "DROP TABLE staging_imports;",
+};
+
+function requiresValidationSql(type: ChallengeType) {
+  return type !== "free_select";
+}
+
 export function AdminChallengeEdit() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -51,8 +76,12 @@ export function AdminChallengeEdit() {
 
   const [modules, setModules] = useState<ModuleOption[]>([]);
   const [form, setForm] = useState<ChallengeForm>(emptyForm);
+  const [starterSql, setStarterSql] = useState(starterDefaults.free_select);
   const [expectedSql, setExpectedSql] = useState("SELECT full_name, email\nFROM customers\nLIMIT 5;");
+  const [setupSql, setSetupSql] = useState("");
+  const [validationSql, setValidationSql] = useState("");
   const [allowedTables, setAllowedTables] = useState(["customers"]);
+  const [customAllowedTable, setCustomAllowedTable] = useState("");
   const [testResult, setTestResult] = useState<Awaited<ReturnType<typeof testExpectedSql>> | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -84,7 +113,7 @@ export function AdminChallengeEdit() {
 
       const { data: challenge, error } = await supabase
         .from("challenges")
-        .select("id, module_id, title, slug, type, difficulty, prompt, expected_sql, allowed_tables, base_points, explanation, is_active, sort_order, challenge_hints(hint_order, content)")
+        .select("id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, explanation, is_active, sort_order, challenge_hints(hint_order, content)")
         .eq("id", id)
         .single();
 
@@ -103,7 +132,7 @@ export function AdminChallengeEdit() {
         title: challenge.title,
         slug: challenge.slug,
         moduleId: challenge.module_id,
-        type: challenge.type,
+        type: challenge.type as ChallengeType,
         difficulty: challenge.difficulty,
         basePoints: challenge.base_points,
         prompt: challenge.prompt,
@@ -112,7 +141,10 @@ export function AdminChallengeEdit() {
         sortOrder: challenge.sort_order,
         isActive: challenge.is_active,
       });
+      setStarterSql(challenge.starter_sql ?? starterDefaults[(challenge.type as ChallengeType) || "free_select"]);
       setExpectedSql(challenge.expected_sql);
+      setSetupSql(challenge.setup_sql ?? "");
+      setValidationSql(challenge.validation_sql ?? "");
       setAllowedTables(challenge.allowed_tables ?? []);
       setLoading(false);
     };
@@ -124,11 +156,24 @@ export function AdminChallengeEdit() {
     setForm((current) => ({ ...current, [key]: value }));
   };
 
+  const updateType = (type: ChallengeType) => {
+    setForm((current) => ({ ...current, type }));
+    if (!starterSql.trim() || starterSql === starterDefaults[form.type]) {
+      setStarterSql(starterDefaults[type]);
+    }
+  };
+
   const handleTest = async () => {
     if (!session?.access_token) return;
     try {
       setTestError(null);
-      setTestResult(await testExpectedSql(expectedSql, allowedTables, session.access_token));
+      setTestResult(await testExpectedSql({
+        sql: expectedSql,
+        type: form.type,
+        allowedTables,
+        setupSql,
+        validationSql,
+      }, session.access_token));
     } catch (error) {
       setTestResult(null);
       setTestError(error instanceof Error ? error.message : "Nao foi possivel testar a query.");
@@ -138,7 +183,12 @@ export function AdminChallengeEdit() {
   const handleSave = async () => {
     setSaveError(null);
     if (!form.title.trim() || !form.slug.trim() || !form.moduleId || !form.prompt.trim() || !expectedSql.trim() || !allowedTables.length) {
-      setSaveError("Preencha titulo, slug, modulo, enunciado, query esperada e pelo menos uma tabela permitida.");
+      setSaveError("Preencha titulo, slug, modulo, enunciado, solucao oficial e pelo menos uma tabela permitida.");
+      return;
+    }
+
+    if (requiresValidationSql(form.type) && !validationSql.trim()) {
+      setSaveError("Desafios INSERT/UPDATE/DELETE/DDL precisam de uma query de validacao.");
       return;
     }
 
@@ -150,8 +200,11 @@ export function AdminChallengeEdit() {
       type: form.type,
       difficulty: form.difficulty,
       prompt: form.prompt.trim(),
+      starter_sql: starterSql.trim() || null,
       expected_sql: expectedSql.trim(),
       allowed_tables: allowedTables,
+      setup_sql: setupSql.trim() || null,
+      validation_sql: validationSql.trim() || null,
       base_points: Number(form.basePoints),
       explanation: form.explanation.trim() || null,
       is_active: form.isActive,
@@ -197,6 +250,16 @@ export function AdminChallengeEdit() {
 
   const toggleTable = (table: string) => {
     setAllowedTables((current) => current.includes(table) ? current.filter((item) => item !== table) : [...current, table]);
+  };
+
+  const addCustomAllowedTable = () => {
+    const table = customAllowedTable.trim().toLowerCase();
+    if (!/^[a-z_][a-z0-9_]*$/.test(table)) {
+      setSaveError("Use nomes de tabela simples, com letras minusculas, numeros e underscore.");
+      return;
+    }
+    setAllowedTables((current) => current.includes(table) ? current : [...current, table]);
+    setCustomAllowedTable("");
   };
 
   if (loading) {
@@ -256,8 +319,10 @@ export function AdminChallengeEdit() {
                 </label>
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-zinc-900">Tipo</span>
-                  <select value={form.type} onChange={(event) => updateForm("type", event.target.value)} className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                    <option value="free_select">free_select</option>
+                  <select value={form.type} onChange={(event) => updateType(event.target.value as ChallengeType)} className="h-10 w-full rounded-md border border-zinc-200 bg-white px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    {challengeTypeOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
                   </select>
                 </label>
                 <label className="space-y-2">
@@ -291,6 +356,11 @@ export function AdminChallengeEdit() {
                 <textarea value={form.prompt} onChange={(event) => updateForm("prompt", event.target.value)} className="min-h-[120px] w-full resize-y rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
               </label>
 
+              <label className="space-y-2 block">
+                <span className="text-sm font-semibold text-zinc-900">SQL inicial do aluno</span>
+                <textarea value={starterSql} onChange={(event) => setStarterSql(event.target.value)} className="min-h-[96px] w-full resize-y rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" spellCheck={false} />
+              </label>
+
               <div className="grid gap-5 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-zinc-900">Dicas</span>
@@ -318,6 +388,21 @@ export function AdminChallengeEdit() {
                   </label>
                 ))}
               </div>
+              <div className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-zinc-50 p-3 sm:flex-row">
+                <Input value={customAllowedTable} onChange={(event) => setCustomAllowedTable(event.target.value)} placeholder="Tabela customizada: suppliers" className="bg-white" />
+                <Button type="button" variant="outline" onClick={addCustomAllowedTable} className="shrink-0 bg-white">
+                  Adicionar tabela
+                </Button>
+              </div>
+              {allowedTables.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {allowedTables.map((table) => (
+                    <Badge key={table} variant="secondary" className="bg-zinc-100 text-xs text-zinc-700">
+                      {table}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <SchemaExplorer tables={challengeSchema.filter((table) => allowedTables.includes(table.name))} />
             </CardContent>
           </Card>
@@ -330,18 +415,28 @@ export function AdminChallengeEdit() {
               Validacao SQL
             </div>
             <Badge variant="secondary" className="bg-zinc-100 text-[10px] text-zinc-600">
-              SELECT-only
+              {challengeTypeOptions.find((option) => option.value === form.type)?.label ?? form.type}
             </Badge>
           </div>
           <CardContent className="space-y-5 p-6">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-semibold text-zinc-900">Query esperada</label>
+                <label className="text-sm font-semibold text-zinc-900">Solucao oficial</label>
                 <Button type="button" size="sm" onClick={handleTest} className="h-8 gap-1.5 bg-green-600 text-white hover:bg-green-500">
                   <Play className="h-3.5 w-3.5 fill-current" /> Testar query
                 </Button>
               </div>
               <textarea value={expectedSql} onChange={(event) => setExpectedSql(event.target.value)} className="min-h-[260px] w-full resize-y rounded-lg border border-zinc-800 bg-zinc-950 p-4 font-mono text-sm leading-relaxed text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500" spellCheck={false} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-zinc-900">Setup SQL do sandbox</label>
+              <textarea value={setupSql} onChange={(event) => setSetupSql(event.target.value)} className="min-h-[120px] w-full resize-y rounded-lg border border-zinc-200 bg-white p-4 font-mono text-sm leading-relaxed text-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Opcional: CREATE TABLE staging_imports (...);" spellCheck={false} />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-semibold text-zinc-900">Query de validacao final</label>
+              <textarea value={validationSql} onChange={(event) => setValidationSql(event.target.value)} className="min-h-[160px] w-full resize-y rounded-lg border border-zinc-200 bg-white p-4 font-mono text-sm leading-relaxed text-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Obrigatoria para INSERT/UPDATE/DELETE/DDL. Deve retornar o estado final esperado." spellCheck={false} />
             </div>
 
             {(testResult || testError) && (

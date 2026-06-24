@@ -3,8 +3,11 @@ import { queryAdminDb } from "./admin-db.js";
 export type DbChallenge = {
   id: string;
   title: string;
+  type: string;
   expected_sql: string;
   allowed_tables: string[];
+  setup_sql: string | null;
+  validation_sql: string | null;
   base_points: number;
   is_active: boolean;
 };
@@ -19,7 +22,7 @@ export type AttemptRecord = {
 export async function fetchActiveChallenge(challengeId: string) {
   const { rows } = await queryAdminDb<DbChallenge>(
     `
-      select id, title, expected_sql, allowed_tables, base_points, is_active
+      select id, title, type, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, is_active
       from public.challenges
       where id = $1
         and is_active = true

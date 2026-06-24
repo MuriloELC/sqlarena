@@ -44,11 +44,14 @@ create table if not exists challenges (
   module_id uuid not null references modules(id) on delete cascade,
   title text not null,
   slug text unique not null,
-  type text not null default 'free_select',
+  type text not null default 'free_select' check (type in ('free_select', 'insert_rows', 'update_rows', 'delete_rows', 'create_table', 'alter_table', 'drop_table')),
   difficulty text not null check (difficulty in ('easy', 'medium', 'hard', 'special')),
   prompt text not null,
+  starter_sql text,
   expected_sql text not null,
   allowed_tables text[] not null,
+  setup_sql text,
+  validation_sql text,
   base_points int not null default 10,
   explanation text,
   tags text[],
@@ -495,14 +498,27 @@ begin
   if not exists (select 1 from pg_roles where rolname = 'challenge_runner') then
     create role challenge_runner noinherit;
   end if;
+  if not exists (select 1 from pg_roles where rolname = 'challenge_sandbox_runner') then
+    create role challenge_sandbox_runner noinherit;
+  end if;
 end
 $$;
 
 -- In production, set LOGIN and a strong password outside source control:
 -- alter role challenge_runner login password 'generated-strong-password';
+-- alter role challenge_sandbox_runner login password 'generated-strong-password';
 grant usage on schema challenge_data to challenge_runner;
 grant select on all tables in schema challenge_data to challenge_runner;
 alter default privileges in schema challenge_data grant select on tables to challenge_runner;
+grant usage on schema challenge_data to challenge_sandbox_runner;
+grant select on all tables in schema challenge_data to challenge_sandbox_runner;
+alter default privileges in schema challenge_data grant select on tables to challenge_sandbox_runner;
+
+do $$
+begin
+  execute format('grant create on database %I to challenge_sandbox_runner', current_database());
+end
+$$;
 
 create policy challenge_runner_read_customers on challenge_data.customers for select to challenge_runner using (true);
 create policy challenge_runner_read_categories on challenge_data.categories for select to challenge_runner using (true);
@@ -512,3 +528,11 @@ create policy challenge_runner_read_order_items on challenge_data.order_items fo
 create policy challenge_runner_read_payments on challenge_data.payments for select to challenge_runner using (true);
 create policy challenge_runner_read_shipments on challenge_data.shipments for select to challenge_runner using (true);
 create policy challenge_runner_read_financial_transactions on challenge_data.financial_transactions for select to challenge_runner using (true);
+create policy challenge_sandbox_read_customers on challenge_data.customers for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_categories on challenge_data.categories for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_products on challenge_data.products for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_orders on challenge_data.orders for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_order_items on challenge_data.order_items for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_payments on challenge_data.payments for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_shipments on challenge_data.shipments for select to challenge_sandbox_runner using (true);
+create policy challenge_sandbox_read_financial_transactions on challenge_data.financial_transactions for select to challenge_sandbox_runner using (true);

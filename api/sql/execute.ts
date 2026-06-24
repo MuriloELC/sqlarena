@@ -30,9 +30,15 @@ export default async function handler(req: any, res: any) {
     const challenge = await fetchActiveChallenge(challengeId);
     if (!challenge?.is_active) throw new HttpError(404, "Desafio nao encontrado ou inativo.");
 
-    const userResult = await runChallengeQuery(submittedSql, challenge.allowed_tables);
+    const executionConfig = {
+      type: challenge.type,
+      allowedTables: challenge.allowed_tables,
+      setupSql: challenge.setup_sql,
+      validationSql: challenge.validation_sql,
+    };
+    const userResult = await runChallengeQuery(submittedSql, executionConfig);
     executionTimeMs = userResult.execution_time_ms;
-    const expectedResult = await runExpectedQuery(challenge.expected_sql, challenge.allowed_tables);
+    const expectedResult = await runExpectedQuery(challenge.expected_sql, executionConfig);
     const isCorrect = sameResult(userResult, expectedResult);
 
     const attempt = await recordChallengeAttempt({

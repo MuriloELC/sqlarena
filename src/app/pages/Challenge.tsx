@@ -9,14 +9,14 @@ import { SchemaExplorer } from "../../features/learning/components/SchemaExplore
 import { challengeSchema } from "../../features/learning/data/catalog";
 import { fetchActiveEvent, fetchChallenge, fetchLearningModules } from "../../features/learning/data/supabase-catalog";
 import { executeChallengeSql, type SqlRunResult } from "../../features/sql-runner/api-runner";
-import type { Challenge as ChallengeType, LearningModule, PlatformEvent } from "../../shared/types/sql-arena";
+import type { Challenge as ChallengeModel, ChallengeType, LearningModule, PlatformEvent } from "../../shared/types/sql-arena";
 import { useAuth } from "../../features/auth/AuthProvider";
 
 export function Challenge() {
   const navigate = useNavigate();
   const { id } = useParams();
   const { session, user, refreshProfile } = useAuth();
-  const [challenge, setChallenge] = useState<ChallengeType | null>(null);
+  const [challenge, setChallenge] = useState<ChallengeModel | null>(null);
   const [module, setModule] = useState<LearningModule | null>(null);
   const [activeEvent, setActiveEvent] = useState<PlatformEvent | null>(null);
   const [isLoadingChallenge, setIsLoadingChallenge] = useState(true);
@@ -44,6 +44,7 @@ export function Challenge() {
 
   const lineNumbers = useMemo(() => sql.split("\n").map((_, index) => index + 1), [sql]);
   const isCorrect = runResult?.status === "correct";
+  const isStateValidation = challenge ? challenge.type !== "free_select" : false;
 
   const handleRun = async () => {
     if (!challenge || !session?.access_token) return;
@@ -177,7 +178,7 @@ export function Challenge() {
                 <span className="font-mono text-xs text-zinc-400">query.sql</span>
                 <span className="hidden items-center gap-1 text-xs text-emerald-400 sm:flex">
                   <ShieldCheck className="h-3.5 w-3.5" />
-                  SELECT-only
+                  {challengeTypeLabels[challenge.type]}
                 </span>
               </div>
               <div className="flex items-center gap-2">
@@ -234,7 +235,7 @@ export function Challenge() {
             )}
 
             <div className="flex items-center justify-between border-b border-zinc-200 bg-zinc-50 px-4 py-2 text-xs font-semibold text-zinc-500">
-              <span>Resultado: {runResult?.rows.length ?? 0} linhas retornadas em {runResult?.executionTimeMs ?? 0}ms</span>
+              <span>{isStateValidation ? "Verificacao do estado final" : "Resultado"}: {runResult?.rows.length ?? 0} linhas retornadas em {runResult?.executionTimeMs ?? 0}ms</span>
               <span>{runResult?.limited ? "Resultado limitado a 500 linhas" : "Limite MVP: 500 linhas"}</span>
             </div>
 
@@ -254,7 +255,11 @@ export function Challenge() {
                   {runResult ? <XCircle className="mb-3 h-12 w-12 text-red-200" /> : <Play className="mb-3 h-12 w-12 opacity-20" />}
                   <p className="font-semibold text-zinc-600">{runResult ? "Nenhum resultado aprovado ainda." : "Execute sua query para ver os resultados aqui."}</p>
                   <p className="mt-1 max-w-md text-sm text-zinc-500">
-                    {runResult ? "A validacao compara colunas, ordem das colunas, linhas, ordem das linhas e valores." : "Esta simulacao representa o contrato do endpoint /api/sql/execute."}
+                    {runResult
+                      ? isStateValidation
+                        ? "A validacao executa sua instrucao em um sandbox limpo e compara o estado final esperado."
+                        : "A validacao compara colunas, ordem das colunas, linhas, ordem das linhas e valores."
+                      : "Esta simulacao representa o contrato do endpoint /api/sql/execute."}
                   </p>
                 </div>
               )}
@@ -265,3 +270,13 @@ export function Challenge() {
     </div>
   );
 }
+
+const challengeTypeLabels: Record<ChallengeType, string> = {
+  free_select: "SELECT",
+  insert_rows: "INSERT",
+  update_rows: "UPDATE",
+  delete_rows: "DELETE",
+  create_table: "CREATE TABLE",
+  alter_table: "ALTER TABLE",
+  drop_table: "DROP TABLE",
+};

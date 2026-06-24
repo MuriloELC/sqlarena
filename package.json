@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:sql-security": "node scripts/check-sql-security.cjs"
   },
   "dependencies": {
     "@emotion/react": "11.14.0",

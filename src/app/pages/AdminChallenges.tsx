@@ -9,6 +9,7 @@ type AdminChallengeRow = {
   id: string;
   title: string;
   slug: string;
+  type: string;
   difficulty: "easy" | "medium" | "hard" | "special";
   base_points: number;
   is_active: boolean;
@@ -21,6 +22,16 @@ const difficultyLabels: Record<string, string> = {
   medium: "Medio",
   hard: "Dificil",
   special: "Especial",
+};
+
+const typeLabels: Record<string, string> = {
+  free_select: "SELECT",
+  insert_rows: "INSERT",
+  update_rows: "UPDATE",
+  delete_rows: "DELETE",
+  create_table: "CREATE TABLE",
+  alter_table: "ALTER TABLE",
+  drop_table: "DROP TABLE",
 };
 
 export function AdminChallenges() {
@@ -37,7 +48,7 @@ export function AdminChallenges() {
 
     const { data, error } = await supabase
       .from("challenges")
-      .select("id, title, slug, difficulty, base_points, is_active, sort_order, modules(title)")
+      .select("id, title, slug, type, difficulty, base_points, is_active, sort_order, modules(title)")
       .order("sort_order", { ascending: true });
 
     if (error) setError(error.message);
@@ -111,6 +122,7 @@ export function AdminChallenges() {
                   <th className="px-6 py-4 w-16 text-center">Ordem</th>
                   <th className="px-6 py-4">Titulo</th>
                   <th className="px-6 py-4">Modulo</th>
+                  <th className="px-6 py-4">Tipo</th>
                   <th className="px-6 py-4">Dificuldade</th>
                   <th className="px-6 py-4 text-center">XP</th>
                   <th className="px-6 py-4 text-center">Status</th>
@@ -130,6 +142,11 @@ export function AdminChallenges() {
                         <p className="mt-0.5 text-xs font-mono text-zinc-400">{challenge.slug}</p>
                       </td>
                       <td className="px-6 py-4 text-sm text-zinc-500">{module?.title ?? "-"}</td>
+                      <td className="px-6 py-4">
+                        <Badge variant="secondary" className="bg-blue-50 text-xs font-semibold text-blue-700">
+                          {typeLabels[challenge.type] ?? challenge.type}
+                        </Badge>
+                      </td>
                       <td className="px-6 py-4">
                         <Badge variant="secondary" className="bg-zinc-100 text-xs font-semibold text-zinc-700">
                           {difficultyLabels[challenge.difficulty] ?? challenge.difficulty}

@@ -5,7 +5,10 @@ import { requireAdmin } from "../../_lib/supabase-admin.js";
 
 type TestQueryBody = {
   sql?: string;
+  type?: string;
   allowed_tables?: string[];
+  setup_sql?: string | null;
+  validation_sql?: string | null;
 };
 
 export default async function handler(req: any, res: any) {
@@ -15,9 +18,17 @@ export default async function handler(req: any, res: any) {
 
     const body = readBody<TestQueryBody>(req);
     const sql = typeof body.sql === "string" ? body.sql : "";
+    const type = typeof body.type === "string" ? body.type : "free_select";
     const allowedTables = Array.isArray(body.allowed_tables) ? body.allowed_tables.filter((item) => typeof item === "string") : [];
+    const setupSql = typeof body.setup_sql === "string" ? body.setup_sql : null;
+    const validationSql = typeof body.validation_sql === "string" ? body.validation_sql : null;
 
-    const result = await runExpectedQuery(sql, allowedTables);
+    const result = await runExpectedQuery(sql, {
+      type,
+      allowedTables,
+      setupSql,
+      validationSql,
+    });
     return res.status(200).json({
       status: "ok",
       result,

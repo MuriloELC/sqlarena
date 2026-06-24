@@ -36,9 +36,12 @@ VITE_PRIVACY_CONTACT_EMAIL=
 SUPABASE_SERVICE_ROLE_KEY=
 CHALLENGE_DATABASE_URL=
 CHALLENGE_RUNNER_DATABASE_URL=
+CHALLENGE_SANDBOX_DATABASE_URL=
 ```
 
 Regra importante: `CHALLENGE_RUNNER_DATABASE_URL` deve usar uma role somente leitura, com acesso apenas ao schema `challenge_data`. O frontend nunca deve receber essa variavel.
+
+`CHALLENGE_SANDBOX_DATABASE_URL` deve usar a role `challenge_sandbox_runner`, com leitura em `challenge_data` e permissao para criar schemas temporarios. Ela executa desafios `INSERT`, `UPDATE`, `DELETE`, `CREATE TABLE`, `ALTER TABLE` e `DROP TABLE` em transacoes descartadas por rollback.
 
 `CHALLENGE_DATABASE_URL` fica somente no backend e executa consultas privilegiadas da API. `SUPABASE_SERVICE_ROLE_KEY` e opcional neste projeto; se nao for configurada, a API usa a publishable key apenas para validar o token do usuario no Supabase Auth.
 
@@ -67,6 +70,12 @@ node scripts/apply-production-migration.cjs
 
 O script le `CHALLENGE_DATABASE_URL` do `.env`, aplica `supabase/migrations/20260610000100_production_features_lgpd.sql` e valida campos legais, bucket `avatars` e policies de Storage.
 
+Para aplicar a migration de suporte a DML/DDL:
+
+```bash
+node scripts/apply-production-migration.cjs supabase/migrations/20260620000100_sql_dml_ddl_sandbox.sql
+```
+
 ## Acessos de teste
 
 As contas Auth de teste existentes tiveram uma senha temporaria comum definida para QA. A senha e os emails completos ficam fora do Git, no `.env` local:
@@ -94,6 +103,7 @@ Contas atuais:
 
 ```sql
 alter role challenge_runner login password 'senha-forte-gerada';
+alter role challenge_sandbox_runner login password 'outra-senha-forte-gerada';
 ```
 
 4. Configure Auth no Supabase: email/senha, URL da Vercel e redirect permitido `https://jogo-sql.vercel.app/reset-password`. Google/GitHub foram removidos do app e devem ficar desativados no painel.
@@ -105,6 +115,7 @@ VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_PRIVACY_CONTACT_EMAIL=
 CHALLENGE_DATABASE_URL=
 CHALLENGE_RUNNER_DATABASE_URL=
+CHALLENGE_SANDBOX_DATABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 ```
 

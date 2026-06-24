@@ -198,9 +198,10 @@ function hydrateModules(): LearningModule[] {
   });
 }
 
-function challenge(input: Omit<Challenge, "slug" | "status" | "expectedColumns" | "expectedRows"> & Partial<Challenge>): Challenge {
+function challenge(input: Omit<Challenge, "slug" | "type" | "status" | "expectedColumns" | "expectedRows"> & Partial<Challenge>): Challenge {
   return {
     slug: input.id,
+    type: "free_select",
     status: "available",
     expectedColumns: [],
     expectedRows: [],

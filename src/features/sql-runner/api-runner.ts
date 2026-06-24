@@ -46,14 +46,26 @@ export async function executeChallengeSql(challengeId: string, sql: string, acce
   return mapRunResult(payload);
 }
 
-export async function testExpectedSql(sql: string, allowedTables: string[], accessToken: string) {
+export async function testExpectedSql(input: {
+  sql: string;
+  type: string;
+  allowedTables: string[];
+  setupSql?: string | null;
+  validationSql?: string | null;
+}, accessToken: string) {
   const response = await fetch("/api/admin/challenges/test-query", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ sql, allowed_tables: allowedTables }),
+    body: JSON.stringify({
+      sql: input.sql,
+      type: input.type,
+      allowed_tables: input.allowedTables,
+      setup_sql: input.setupSql ?? null,
+      validation_sql: input.validationSql ?? null,
+    }),
   });
 
   const payload = await response.json().catch(() => null) as { status?: string; message?: string; result?: ApiQueryResult; warning?: string | null } | null;
