@@ -4,9 +4,9 @@ import { Calendar, Camera, Code2, Loader2, Map, Medal, Save, Trophy, Zap } from 
 import { Button } from "../components/ui/Button";
 import { Avatar, AvatarFallback, AvatarImage } from "../components/ui/avatar";
 import { Badge, Card, CardContent, Input } from "../components/ui/InputCardBadge";
-import { getModuleProgress } from "../../features/learning/data/catalog";
 import { fetchAttempts, fetchCurrentProfile, fetchLearningModules, fetchProfileByUsername, fetchRanking } from "../../features/learning/data/supabase-catalog";
 import { formatXp } from "../../features/learning/utils/format";
+import { getModuleProgress } from "../../features/learning/utils/progress";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { supabase } from "../../lib/supabase";
 import type { LearningModule, UserProfile } from "../../shared/types/sql-arena";

@@ -5,7 +5,7 @@ import { Button } from "../components/ui/Button";
 import { Badge, Card, CardContent, Input } from "../components/ui/InputCardBadge";
 import { ResultTable } from "../../features/learning/components/ResultTable";
 import { SchemaExplorer } from "../../features/learning/components/SchemaExplorer";
-import { challengeSchema } from "../../features/learning/data/catalog";
+import { challengeSchema } from "../../features/learning/data/challenge-data";
 import { testExpectedSql } from "../../features/sql-runner/api-runner";
 import { useAuth } from "../../features/auth/AuthProvider";
 import { supabase } from "../../lib/supabase";

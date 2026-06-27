@@ -4,8 +4,8 @@ import { Check, CheckCircle2, Loader2, Lock, Zap } from "lucide-react";
 import { Button } from "../components/ui/Button";
 import { Card, CardContent } from "../components/ui/InputCardBadge";
 import { DifficultyBadge } from "../../features/learning/components/DifficultyBadge";
-import { getModuleProgress } from "../../features/learning/data/catalog";
 import { fetchActiveEvent, fetchLearningModules } from "../../features/learning/data/supabase-catalog";
+import { getModuleProgress } from "../../features/learning/utils/progress";
 import type { LearningModule, PlatformEvent } from "../../shared/types/sql-arena";
 import { useAuth } from "../../features/auth/AuthProvider";
 

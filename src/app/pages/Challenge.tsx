@@ -6,7 +6,7 @@ import { Badge } from "../components/ui/InputCardBadge";
 import { DifficultyBadge } from "../../features/learning/components/DifficultyBadge";
 import { ResultTable } from "../../features/learning/components/ResultTable";
 import { SchemaExplorer } from "../../features/learning/components/SchemaExplorer";
-import { challengeSchema } from "../../features/learning/data/catalog";
+import { challengeSchema } from "../../features/learning/data/challenge-data";
 import { fetchActiveEvent, fetchChallenge, fetchLearningModules } from "../../features/learning/data/supabase-catalog";
 import { executeChallengeSql, type SqlRunResult } from "../../features/sql-runner/api-runner";
 import type { Challenge as ChallengeModel, ChallengeType, LearningModule, PlatformEvent } from "../../shared/types/sql-arena";
@@ -36,7 +36,9 @@ export function Challenge() {
         setChallenge(nextChallenge);
         setModule(modules.find((item) => item.id === nextChallenge.moduleId) ?? null);
         setActiveEvent(event);
-        setSql(nextChallenge.starterSql);
+        setSql("");
+        setRunResult(null);
+        setHintOpen(false);
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Nao foi possivel carregar o desafio."))
       .finally(() => setIsLoadingChallenge(false));
@@ -45,6 +47,8 @@ export function Challenge() {
   const lineNumbers = useMemo(() => sql.split("\n").map((_, index) => index + 1), [sql]);
   const isCorrect = runResult?.status === "correct";
   const isStateValidation = challenge ? challenge.type !== "free_select" : false;
+  const isInfoTab = activeTab === "statement" || activeTab === "schema";
+  const isWorkspaceTab = activeTab === "editor" || activeTab === "result";
 
   const handleRun = async () => {
     if (!challenge || !session?.access_token) return;
@@ -130,7 +134,7 @@ export function Challenge() {
           ))}
         </nav>
 
-        <aside className={`min-h-0 overflow-y-auto border-r border-zinc-200 bg-white p-5 md:block ${activeTab === "statement" || activeTab === "schema" ? "block" : "hidden"}`}>
+        <aside className={`min-h-0 overflow-y-auto border-r border-zinc-200 bg-white p-5 ${isInfoTab ? "block" : "hidden"} md:block`}>
           <section className={activeTab === "statement" ? "block" : "hidden md:block"}>
             <h2 className="mb-3 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-900">
               <Info className="h-4 w-4 text-indigo-500" />
@@ -171,7 +175,7 @@ export function Challenge() {
           </div>
         </aside>
 
-        <main className="grid min-h-0 grid-rows-[minmax(260px,1fr)_minmax(230px,40%)] bg-zinc-950 text-zinc-50">
+        <main className={`min-h-0 grid-rows-[minmax(0,1fr)] bg-zinc-950 text-zinc-50 ${isWorkspaceTab ? "grid" : "hidden"} md:grid md:grid-rows-[minmax(260px,1fr)_minmax(230px,40%)]`}>
           <section className={`min-h-0 flex-col ${activeTab === "editor" ? "flex" : "hidden md:flex"}`}>
             <div className="flex items-center justify-between border-b border-zinc-800 bg-zinc-900 px-4 py-2">
               <div className="flex items-center gap-2">
@@ -184,9 +188,6 @@ export function Challenge() {
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setSql("")} className="h-8 text-zinc-400 hover:bg-zinc-800 hover:text-white">
                   Limpar
-                </Button>
-                <Button variant="ghost" size="sm" onClick={() => setSql(challenge.starterSql)} className="h-8 text-zinc-400 hover:bg-zinc-800 hover:text-white">
-                  Restaurar
                 </Button>
                 <Button size="sm" onClick={handleRun} disabled={isRunning} className="h-8 gap-1.5 bg-green-600 font-bold text-white shadow-md shadow-green-900/20 hover:bg-green-500">
                   {isRunning ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Play className="h-3.5 w-3.5 fill-current" />}

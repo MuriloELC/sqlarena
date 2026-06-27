@@ -1,6 +1,7 @@
 import type { Challenge, ChallengeType, Difficulty, LearningModule, ModuleStatus, PlatformEvent, UserProfile } from "../../../shared/types/sql-arena";
 import { supabase } from "../../../lib/supabase";
 import type { AppProfile } from "../../auth/AuthProvider";
+import { getModuleProgress } from "../utils/progress";
 
 type DbHint = {
   hint_order: number;
@@ -16,10 +17,7 @@ type DbChallenge = {
   difficulty: Difficulty;
   prompt: string;
   starter_sql: string | null;
-  expected_sql: string;
   allowed_tables: string[];
-  setup_sql: string | null;
-  validation_sql: string | null;
   base_points: number;
   explanation: string | null;
   sort_order: number;
@@ -80,7 +78,7 @@ export async function fetchLearningModules(userId: string): Promise<LearningModu
   const [{ data: modules, error }, { data: progress, error: progressError }] = await Promise.all([
     supabase
       .from("modules")
-      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
+      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, type, difficulty, prompt, starter_sql, allowed_tables, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
       .eq("is_active", true)
       .eq("challenges.is_active", true)
       .order("sort_order", { ascending: true })
@@ -226,9 +224,9 @@ function mapChallenge(challenge: DbChallenge, completedIds: Set<string>): Challe
     baseXp: challenge.base_points,
     status: completedIds.has(challenge.id) ? "completed" : "available",
     starterSql: challenge.starter_sql ?? getDefaultStarterSql(type, challenge.allowed_tables ?? []),
-    expectedSql: challenge.expected_sql,
-    setupSql: challenge.setup_sql,
-    validationSql: challenge.validation_sql,
+    expectedSql: "",
+    setupSql: null,
+    validationSql: null,
     expectedColumns: [],
     expectedRows: [],
     allowedTables: challenge.allowed_tables ?? [],
@@ -273,11 +271,6 @@ function applyUnlockRules(modules: LearningModule[]): LearningModule[] {
     const status: ModuleStatus = !moduleUnlocked ? "locked" : completed === challenges.length ? "completed" : "in-progress";
     return { ...module, status, challenges };
   });
-}
-
-function getModuleProgress(module: LearningModule) {
-  if (!module.challenges.length) return 0;
-  return Math.round((module.challenges.filter((challenge) => challenge.status === "completed").length / module.challenges.length) * 100);
 }
 
 async function fetchWeeklyPoints(userId: string) {
