@@ -158,12 +158,12 @@ export async function fetchRanking(scope: "overall" | "weekly") {
   const weekStart = getWeekStartIso();
   const { data, error } = await supabase
     .from("point_events")
-    .select("points, profiles(id, username, display_name, avatar_url)")
+    .select("points, challenge_id, source, profiles(id, username, display_name, avatar_url)")
     .gte("created_at", weekStart);
 
   if (error) throw error;
 
-  const grouped = new Map<string, { id: string; name: string; username: string; avatar: string; avatarUrl: string | null; weeklyXp: number; totalXp: number }>();
+  const grouped = new Map<string, { id: string; name: string; username: string; avatar: string; avatarUrl: string | null; weeklyXp: number; totalXp: number; completedChallengeIds: Set<string> }>();
   for (const row of data ?? []) {
     const profile = Array.isArray(row.profiles) ? row.profiles[0] : row.profiles;
     if (!profile) continue;
@@ -175,12 +175,22 @@ export async function fetchRanking(scope: "overall" | "weekly") {
       avatarUrl: profile.avatar_url,
       weeklyXp: 0,
       totalXp: 0,
+      completedChallengeIds: new Set<string>(),
     };
     current.weeklyXp += Number(row.points ?? 0);
+    if (row.source === "challenge_completed" && row.challenge_id) {
+      current.completedChallengeIds.add(row.challenge_id);
+    }
     grouped.set(profile.id, current);
   }
 
-  return [...grouped.values()].sort((a, b) => b.weeklyXp - a.weeklyXp).slice(0, 20);
+  return [...grouped.values()]
+    .map(({ completedChallengeIds, ...user }) => ({
+      ...user,
+      completedChallenges: completedChallengeIds.size,
+    }))
+    .sort((a, b) => b.weeklyXp - a.weeklyXp)
+    .slice(0, 20);
 }
 
 export async function fetchAttempts(userId: string) {
