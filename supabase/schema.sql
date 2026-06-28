@@ -204,18 +204,31 @@ create table if not exists challenge_data.financial_transactions (
 create or replace view ranking_general
 with (security_invoker = true)
 as
+with point_totals as (
+  select
+    user_id,
+    coalesce(sum(points), 0) as points
+  from point_events
+  group by user_id
+),
+progress_totals as (
+  select
+    user_id,
+    count(challenge_id) as completed_challenges
+  from user_challenge_progress
+  group by user_id
+)
 select
   p.id as user_id,
   p.username,
   p.display_name,
   p.avatar_url,
-  coalesce(sum(pe.points), 0) as points,
-  count(distinct ucp.challenge_id) as completed_challenges
+  coalesce(pt.points, 0) as points,
+  coalesce(pr.completed_challenges, 0) as completed_challenges
 from profiles p
-left join point_events pe on pe.user_id = p.id
-left join user_challenge_progress ucp on ucp.user_id = p.id
-group by p.id, p.username, p.display_name, p.avatar_url
-order by points desc, completed_challenges desc, min(p.created_at) asc;
+left join point_totals pt on pt.user_id = p.id
+left join progress_totals pr on pr.user_id = p.id
+order by points desc, completed_challenges desc, p.created_at asc;
 
 alter table profiles enable row level security;
 alter table tracks enable row level security;
