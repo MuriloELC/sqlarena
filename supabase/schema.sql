@@ -49,6 +49,7 @@ create table if not exists challenges (
   prompt text not null,
   starter_sql text,
   expected_sql text not null,
+  expected_columns text[] not null default '{}',
   allowed_tables text[] not null,
   setup_sql text,
   validation_sql text,

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import type { ClipboardEvent } from "react";
 import { useNavigate, useParams } from "react-router";
 import { ArrowLeft, CheckCircle2, ChevronDown, ChevronRight, Info, Loader2, Play, ShieldCheck, XCircle, Zap } from "lucide-react";
 import { Button } from "../components/ui/Button";
@@ -26,6 +27,7 @@ export function Challenge() {
   const [isRunning, setIsRunning] = useState(false);
   const [runResult, setRunResult] = useState<SqlRunResult | null>(null);
   const [hintOpen, setHintOpen] = useState(false);
+  const [pasteBlocked, setPasteBlocked] = useState(false);
 
   useEffect(() => {
     if (!user || !id) return;
@@ -39,6 +41,7 @@ export function Challenge() {
         setSql("");
         setRunResult(null);
         setHintOpen(false);
+        setPasteBlocked(false);
       })
       .catch((error) => setLoadError(error instanceof Error ? error.message : "Nao foi possivel carregar o desafio."))
       .finally(() => setIsLoadingChallenge(false));
@@ -74,6 +77,12 @@ export function Challenge() {
       setIsRunning(false);
       setActiveTab("result");
     }
+  };
+
+  const handlePaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    event.preventDefault();
+    setPasteBlocked(true);
+    window.setTimeout(() => setPasteBlocked(false), 2200);
   };
 
   if (isLoadingChallenge) {
@@ -141,6 +150,19 @@ export function Challenge() {
               Objetivo
             </h2>
             <p className="text-base font-medium leading-relaxed text-zinc-700">{challenge.statement}</p>
+            {challenge.expectedColumns.length > 0 && (
+              <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4">
+                <p className="mb-3 text-xs font-bold uppercase tracking-wider text-zinc-500">Colunas esperadas</p>
+                <ol className="space-y-2">
+                  {challenge.expectedColumns.map((column, index) => (
+                    <li key={`${column}-${index}`} className="flex items-center gap-3 text-sm text-zinc-700">
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white font-mono text-xs font-bold text-indigo-600 ring-1 ring-zinc-200">{index + 1}</span>
+                      <code className="rounded bg-white px-2 py-1 font-mono text-xs text-zinc-900 ring-1 ring-zinc-200">{column}</code>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            )}
             {challenge.orderingHint && (
               <div className="mt-4 rounded-lg border border-blue-100 bg-blue-50 p-3 text-sm text-blue-800">
                 <p className="mb-1 font-semibold">Regra de ordenacao</p>
@@ -184,6 +206,7 @@ export function Challenge() {
                   <ShieldCheck className="h-3.5 w-3.5" />
                   {challengeTypeLabels[challenge.type]}
                 </span>
+                {pasteBlocked && <span className="text-xs font-semibold text-amber-400">Colar esta bloqueado neste editor.</span>}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="ghost" size="sm" onClick={() => setSql("")} className="h-8 text-zinc-400 hover:bg-zinc-800 hover:text-white">
@@ -206,6 +229,7 @@ export function Challenge() {
               <textarea
                 value={sql}
                 onChange={(event) => setSql(event.target.value)}
+                onPaste={handlePaste}
                 onKeyDown={(event) => {
                   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
                     event.preventDefault();

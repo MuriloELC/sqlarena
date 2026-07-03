@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase";
 
 type AdminChallengeRow = {
   id: string;
+  module_id: string;
   title: string;
   slug: string;
   type: string;
@@ -14,7 +15,7 @@ type AdminChallengeRow = {
   base_points: number;
   is_active: boolean;
   sort_order: number;
-  modules?: { title: string } | { title: string }[] | null;
+  modules?: { id: string; title: string } | { id: string; title: string }[] | null;
 };
 
 const difficultyLabels: Record<string, string> = {
@@ -39,6 +40,7 @@ export function AdminChallenges() {
   const [challenges, setChallenges] = useState<AdminChallengeRow[]>([]);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [moduleId, setModuleId] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -48,7 +50,7 @@ export function AdminChallenges() {
 
     const { data, error } = await supabase
       .from("challenges")
-      .select("id, title, slug, type, difficulty, base_points, is_active, sort_order, modules(title)")
+      .select("id, module_id, title, slug, type, difficulty, base_points, is_active, sort_order, modules(id, title)")
       .order("sort_order", { ascending: true });
 
     if (error) setError(error.message);
@@ -64,9 +66,21 @@ export function AdminChallenges() {
     return challenges.filter((challenge) => {
       const matchesSearch = !search || `${challenge.title} ${challenge.slug}`.toLowerCase().includes(search.toLowerCase());
       const matchesStatus = !status || (status === "active" ? challenge.is_active : !challenge.is_active);
-      return matchesSearch && matchesStatus;
+      const matchesModule = !moduleId || challenge.module_id === moduleId;
+      return matchesSearch && matchesStatus && matchesModule;
     });
-  }, [challenges, search, status]);
+  }, [challenges, moduleId, search, status]);
+
+  const moduleOptions = useMemo(() => {
+    const modules = new Map<string, string>();
+    for (const challenge of challenges) {
+      const module = Array.isArray(challenge.modules) ? challenge.modules[0] : challenge.modules;
+      modules.set(challenge.module_id, module?.title ?? "Modulo sem titulo");
+    }
+    return [...modules.entries()]
+      .map(([id, title]) => ({ id, title }))
+      .sort((left, right) => left.title.localeCompare(right.title, "pt-BR"));
+  }, [challenges]);
 
   const toggleActive = async (challenge: AdminChallengeRow) => {
     const { error } = await supabase.from("challenges").update({ is_active: !challenge.is_active }).eq("id", challenge.id);
@@ -105,6 +119,12 @@ export function AdminChallenges() {
             <option value="">Status</option>
             <option value="active">Ativo</option>
             <option value="inactive">Inativo</option>
+          </select>
+          <select value={moduleId} onChange={(event) => setModuleId(event.target.value)} className="flex h-10 w-full md:w-56 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+            <option value="">Todos os modulos</option>
+            {moduleOptions.map((module) => (
+              <option key={module.id} value={module.id}>{module.title}</option>
+            ))}
           </select>
         </div>
 

@@ -1,6 +1,12 @@
 {
   "version": 1,
   "skills": {
+    "mem-search": {
+      "source": "thedotmack/claude-mem",
+      "sourceType": "github",
+      "skillPath": "plugin/skills/mem-search/SKILL.md",
+      "computedHash": "6058bee763732e6c85f77523e97ad27f476e73ee44fbfdcf105a218ef1dd52e0"
+    },
     "supabase": {
       "source": "supabase/agent-skills",
       "sourceType": "github",

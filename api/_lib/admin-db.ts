@@ -1,6 +1,7 @@
 import { createRequire } from "node:module";
 import type { Pool as PoolType, PoolClient, QueryResult, QueryResultRow } from "pg";
 import { HttpError } from "./http.js";
+import { normalizePostgresConnectionString } from "./pg-connection.js";
 
 const require = createRequire(import.meta.url);
 const { Pool } = require("pg") as typeof import("pg");
@@ -19,7 +20,7 @@ function getAdminPool() {
   }
 
   globalThis.__sqlArenaAdminPool = new Pool({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     ssl: { rejectUnauthorized: false },
     max: 4,
     idleTimeoutMillis: 10_000,

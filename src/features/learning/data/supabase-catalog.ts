@@ -17,6 +17,7 @@ type DbChallenge = {
   difficulty: Difficulty;
   prompt: string;
   starter_sql: string | null;
+  expected_columns: string[] | null;
   allowed_tables: string[];
   base_points: number;
   explanation: string | null;
@@ -78,7 +79,7 @@ export async function fetchLearningModules(userId: string): Promise<LearningModu
   const [{ data: modules, error }, { data: progress, error: progressError }] = await Promise.all([
     supabase
       .from("modules")
-      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, type, difficulty, prompt, starter_sql, allowed_tables, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
+      .select("id, title, description, sort_order, challenges(id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_columns, allowed_tables, base_points, explanation, sort_order, challenge_hints(hint_order, content))")
       .eq("is_active", true)
       .eq("challenges.is_active", true)
       .order("sort_order", { ascending: true })
@@ -237,7 +238,7 @@ function mapChallenge(challenge: DbChallenge, completedIds: Set<string>): Challe
     expectedSql: "",
     setupSql: null,
     validationSql: null,
-    expectedColumns: [],
+    expectedColumns: challenge.expected_columns ?? [],
     expectedRows: [],
     allowedTables: challenge.allowed_tables ?? [],
     hints: [...(challenge.challenge_hints ?? [])].sort((a, b) => a.hint_order - b.hint_order).map((hint) => hint.content),

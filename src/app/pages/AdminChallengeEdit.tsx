@@ -78,6 +78,7 @@ export function AdminChallengeEdit() {
   const [form, setForm] = useState<ChallengeForm>(emptyForm);
   const [starterSql, setStarterSql] = useState(starterDefaults.free_select);
   const [expectedSql, setExpectedSql] = useState("SELECT full_name, email\nFROM customers\nLIMIT 5;");
+  const [expectedColumnsText, setExpectedColumnsText] = useState("");
   const [setupSql, setSetupSql] = useState("");
   const [validationSql, setValidationSql] = useState("");
   const [allowedTables, setAllowedTables] = useState(["customers"]);
@@ -113,7 +114,7 @@ export function AdminChallengeEdit() {
 
       const { data: challenge, error } = await supabase
         .from("challenges")
-        .select("id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, explanation, is_active, sort_order, challenge_hints(hint_order, content)")
+        .select("id, module_id, title, slug, type, difficulty, prompt, starter_sql, expected_sql, expected_columns, allowed_tables, setup_sql, validation_sql, base_points, explanation, is_active, sort_order, challenge_hints(hint_order, content)")
         .eq("id", id)
         .single();
 
@@ -143,6 +144,7 @@ export function AdminChallengeEdit() {
       });
       setStarterSql(challenge.starter_sql ?? starterDefaults[(challenge.type as ChallengeType) || "free_select"]);
       setExpectedSql(challenge.expected_sql);
+      setExpectedColumnsText(((challenge.expected_columns as string[] | null) ?? []).join("\n"));
       setSetupSql(challenge.setup_sql ?? "");
       setValidationSql(challenge.validation_sql ?? "");
       setAllowedTables(challenge.allowed_tables ?? []);
@@ -202,6 +204,7 @@ export function AdminChallengeEdit() {
       prompt: form.prompt.trim(),
       starter_sql: starterSql.trim() || null,
       expected_sql: expectedSql.trim(),
+      expected_columns: parseExpectedColumns(expectedColumnsText),
       allowed_tables: allowedTables,
       setup_sql: setupSql.trim() || null,
       validation_sql: validationSql.trim() || null,
@@ -357,6 +360,11 @@ export function AdminChallengeEdit() {
               </label>
 
               <label className="space-y-2 block">
+                <span className="text-sm font-semibold text-zinc-900">Colunas esperadas</span>
+                <textarea value={expectedColumnsText} onChange={(event) => setExpectedColumnsText(event.target.value)} className="min-h-[88px] w-full resize-y rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Uma coluna por linha, na ordem esperada" spellCheck={false} />
+              </label>
+
+              <label className="space-y-2 block">
                 <span className="text-sm font-semibold text-zinc-900">SQL inicial do aluno</span>
                 <textarea value={starterSql} onChange={(event) => setStarterSql(event.target.value)} className="min-h-[96px] w-full resize-y rounded-md border border-zinc-200 bg-white px-3 py-2 font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" spellCheck={false} />
               </label>
@@ -460,7 +468,7 @@ export function AdminChallengeEdit() {
                       </div>
                     </div>
                     <div className="max-h-64 overflow-auto rounded border border-green-100 bg-white">
-                      <ResultTable columns={testResult.columns} rows={testResult.rows.slice(0, 5)} />
+                      <ResultTable columns={testResult.columns} rows={testResult.rows} />
                     </div>
                     {testResult.warning && <p className="text-xs font-semibold text-amber-700">{testResult.warning}</p>}
                   </div>
@@ -472,4 +480,11 @@ export function AdminChallengeEdit() {
       </div>
     </div>
   );
+}
+
+function parseExpectedColumns(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((column) => column.trim())
+    .filter(Boolean);
 }

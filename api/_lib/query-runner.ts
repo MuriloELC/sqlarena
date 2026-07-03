@@ -11,6 +11,7 @@ import {
   type ChallengeType,
 } from "../../src/shared/sql-security.js";
 import { HttpError } from "./http.js";
+import { normalizePostgresConnectionString } from "./pg-connection.js";
 
 const require = createRequire(import.meta.url);
 const { Pool } = require("pg") as typeof import("pg");
@@ -47,7 +48,7 @@ function getPool() {
   }
 
   globalThis.__sqlArenaRunnerPool = new Pool({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     ssl: { rejectUnauthorized: false },
     max: 4,
     idleTimeoutMillis: 10_000,
@@ -66,7 +67,7 @@ function getSandboxPool() {
   }
 
   globalThis.__sqlArenaSandboxPool = new Pool({
-    connectionString,
+    connectionString: normalizePostgresConnectionString(connectionString),
     ssl: { rejectUnauthorized: false },
     max: 3,
     idleTimeoutMillis: 10_000,
