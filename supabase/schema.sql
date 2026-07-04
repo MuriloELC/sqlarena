@@ -122,6 +122,7 @@ alter table attempts
   foreign key (active_event_id) references platform_events(id) on delete set null;
 
 create schema if not exists challenge_data;
+create schema if not exists private;
 
 create table if not exists challenge_data.customers (
   id uuid primary key default gen_random_uuid(),
@@ -249,56 +250,209 @@ alter table challenge_data.payments enable row level security;
 alter table challenge_data.shipments enable row level security;
 alter table challenge_data.financial_transactions enable row level security;
 
-create policy "profiles are public for learning data" on profiles for select using (true);
-create policy "users insert own profile" on profiles for insert with check (auth.uid() = id);
+revoke all on schema private from public;
+revoke all on schema private from anon, authenticated;
+grant usage on schema private to authenticated, service_role;
+
+create or replace function private.current_user_is_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select exists (
+    select 1
+    from public.profiles
+    where id = (select auth.uid())
+      and role = 'admin'
+  );
+$$;
+
+revoke all on function private.current_user_is_admin() from public;
+revoke all on function private.current_user_is_admin() from anon;
+grant execute on function private.current_user_is_admin() to authenticated, service_role;
+
+create or replace function private.is_challenge_unlocked(p_user_id uuid, p_challenge_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with target_challenge as (
+    select
+      c.id,
+      c.module_id,
+      c.sort_order as challenge_sort_order,
+      m.sort_order as module_sort_order
+    from public.challenges c
+    join public.modules m on m.id = c.module_id
+    where c.id = p_challenge_id
+      and c.is_active = true
+      and m.is_active = true
+  ),
+  previous_module as (
+    select m.id
+    from public.modules m
+    cross join target_challenge tc
+    where m.is_active = true
+      and m.sort_order < tc.module_sort_order
+    order by m.sort_order desc
+    limit 1
+  ),
+  previous_module_progress as (
+    select
+      count(c.id)::numeric as total_challenges,
+      count(ucp.challenge_id)::numeric as completed_challenges
+    from previous_module pm
+    join public.challenges c on c.module_id = pm.id and c.is_active = true
+    left join public.user_challenge_progress ucp
+      on ucp.challenge_id = c.id
+     and ucp.user_id = p_user_id
+  ),
+  previous_challenge as (
+    select c.id
+    from public.challenges c
+    join target_challenge tc on tc.module_id = c.module_id
+    where c.is_active = true
+      and c.sort_order < tc.challenge_sort_order
+    order by c.sort_order desc
+    limit 1
+  )
+  select
+    p_user_id is not null
+    and exists (select 1 from target_challenge)
+    and (
+      not exists (select 1 from previous_module)
+      or exists (
+        select 1
+        from previous_module_progress pmp
+        where pmp.total_challenges = 0
+           or (pmp.completed_challenges / nullif(pmp.total_challenges, 0)) >= 0.7
+      )
+    )
+    and (
+      not exists (select 1 from previous_challenge)
+      or exists (
+        select 1
+        from public.user_challenge_progress ucp
+        join previous_challenge pc on pc.id = ucp.challenge_id
+        where ucp.user_id = p_user_id
+      )
+    );
+$$;
+
+revoke all on function private.is_challenge_unlocked(uuid, uuid) from public;
+revoke all on function private.is_challenge_unlocked(uuid, uuid) from anon, authenticated;
+grant execute on function private.is_challenge_unlocked(uuid, uuid) to service_role;
+
+create policy "users read own profile" on profiles
+  for select
+  to authenticated
+  using ((select auth.uid()) = id);
+
+create policy "admins read profiles" on profiles
+  for select
+  to authenticated
+  using ((select private.current_user_is_admin()));
+
+create policy "users insert own student profile" on profiles
+  for insert
+  to authenticated
+  with check ((select auth.uid()) = id and role = 'student' and total_points = 0);
+
 create policy "users update own profile" on profiles
   for update
   to authenticated
   using ((select auth.uid()) = id)
   with check ((select auth.uid()) = id);
 
-create policy "active tracks are readable" on tracks for select using (is_active = true);
-create policy "active modules are readable" on modules for select using (is_active = true);
-create policy "active challenges are readable" on challenges for select using (is_active = true);
-create policy "hints are readable" on challenge_hints for select using (true);
-create policy "users read own attempts" on attempts for select using (auth.uid() = user_id);
-create policy "users insert own attempts" on attempts for insert with check (auth.uid() = user_id);
-create policy "admins read attempts" on attempts for select using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-);
-create policy "users read own progress" on user_challenge_progress for select using (auth.uid() = user_id);
-create policy "progress is readable for rankings" on user_challenge_progress for select using (true);
-create policy "point events are readable for rankings" on point_events for select using (true);
-create policy "active events are readable" on platform_events for select using (is_active = true);
+create policy "active tracks are readable by authenticated users" on tracks
+  for select
+  to authenticated
+  using (is_active = true);
 
-create policy "admins manage tracks" on tracks for all using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-) with check (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-);
+create policy "active modules are readable by authenticated users" on modules
+  for select
+  to authenticated
+  using (is_active = true);
 
-create policy "admins manage modules" on modules for all using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-) with check (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-);
+create policy "users read own attempts" on attempts
+  for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
 
-create policy "admins manage challenges" on challenges for all using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
-) with check (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+create policy "users insert own attempts" on attempts
+  for insert
+  to authenticated
+  with check ((select auth.uid()) = user_id);
+
+create policy "admins read attempts" on attempts
+  for select
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
 );
 
-create policy "admins manage hints" on challenge_hints for all using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+create policy "users read own progress" on user_challenge_progress
+  for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+create policy "users read own point events" on point_events
+  for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+create policy "active events are readable by authenticated users" on platform_events
+  for select
+  to authenticated
+  using (is_active = true);
+
+create policy "admins manage tracks" on tracks
+  for all
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
 ) with check (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+  (select private.current_user_is_admin())
 );
 
-create policy "admins manage events" on platform_events for all using (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+create policy "admins manage modules" on modules
+  for all
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
 ) with check (
-  exists (select 1 from profiles where profiles.id = auth.uid() and profiles.role = 'admin')
+  (select private.current_user_is_admin())
+);
+
+create policy "admins manage challenges" on challenges
+  for all
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
+) with check (
+  (select private.current_user_is_admin())
+);
+
+create policy "admins manage hints" on challenge_hints
+  for all
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
+) with check (
+  (select private.current_user_is_admin())
+);
+
+create policy "admins manage events" on platform_events
+  for all
+  to authenticated
+  using (
+  (select private.current_user_is_admin())
+) with check (
+  (select private.current_user_is_admin())
 );
 
 create or replace function public.handle_new_user()
@@ -367,6 +521,10 @@ declare
   v_attempt_id uuid;
   v_already_completed boolean := false;
 begin
+  if not private.is_challenge_unlocked(p_user_id, p_challenge_id) then
+    raise exception 'Desafio bloqueado para este usuario.';
+  end if;
+
   select *
     into v_challenge
   from challenges
@@ -498,8 +656,11 @@ using (
   and (storage.foldername(name))[1] = (select auth.uid())::text
 );
 
-grant select on public.profiles, public.tracks, public.modules, public.challenges, public.challenge_hints, public.user_challenge_progress, public.point_events, public.platform_events, public.ranking_general to anon, authenticated;
-grant insert on public.profiles to authenticated;
+revoke select on public.profiles, public.tracks, public.modules, public.challenges, public.challenge_hints, public.user_challenge_progress, public.point_events, public.platform_events, public.ranking_general from anon, authenticated;
+revoke insert on public.profiles from anon, authenticated;
+
+grant select on public.profiles, public.tracks, public.modules, public.user_challenge_progress, public.point_events, public.platform_events to authenticated;
+grant insert (id, username, display_name, avatar_url, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version) on public.profiles to authenticated;
 revoke update on public.profiles from authenticated;
 grant update (username, display_name, avatar_url, terms_accepted_at, terms_version, privacy_accepted_at, privacy_version, updated_at) on public.profiles to authenticated;
 grant select, insert on public.attempts to authenticated;

@@ -7,6 +7,7 @@ import {
   parseChallengeType,
   sanitizeSql,
   validateChallengeSql,
+  validateSetupSql,
   validateValidationSql,
   type ChallengeType,
 } from "../../src/shared/sql-security.js";
@@ -145,7 +146,7 @@ async function runSandboxedMutationQuery(sql: string, config: ChallengeExecution
 
     await copyAllowedTables(client, config.allowedTables);
 
-    const setupSql = sanitizeSql(config.setupSql ?? "");
+    const setupSql = validateSetupSql(config.setupSql ?? "");
     if (setupSql) {
       await client.query(setupSql);
     }

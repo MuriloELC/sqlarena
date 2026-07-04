@@ -41,9 +41,10 @@ export function Profile() {
     try {
       const nextProfile = await profilePromise;
       if (!nextProfile) throw new Error("Perfil nao encontrado.");
+      const isOwnProfileData = nextProfile.id === user.id;
       const [nextModules, nextAttempts, overall, weekly] = await Promise.all([
-        fetchLearningModules(nextProfile.id),
-        nextProfile.id === user.id ? fetchAttempts(nextProfile.id) : Promise.resolve([]),
+        isOwnProfileData ? fetchLearningModules(nextProfile.id) : Promise.resolve([]),
+        isOwnProfileData ? fetchAttempts(nextProfile.id) : Promise.resolve([]),
         fetchRanking("overall"),
         fetchRanking("weekly"),
       ]);
@@ -194,36 +195,40 @@ export function Profile() {
         </Card>
 
         <div className="space-y-6 md:col-span-2">
-          <Card className="rounded-lg border-zinc-200 shadow-sm">
-            <CardContent className="p-6">
-              <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500"><Map className="h-4 w-4 text-indigo-500" />Progresso por modulo</h3>
-              <div className="space-y-5">
-                {modules.map((module) => {
-                  const progress = getModuleProgress(module);
-                  return (
-                    <div key={module.id}>
-                      <div className="mb-2 flex justify-between text-sm font-medium"><span className="text-zinc-700">{module.title}</span><span className="text-zinc-500">{progress}%</span></div>
-                      <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100"><div className={`h-full rounded-full ${progress === 100 ? "bg-green-500" : "bg-indigo-500"}`} style={{ width: `${progress}%` }} /></div>
-                    </div>
-                  );
-                })}
-              </div>
-            </CardContent>
-          </Card>
+          {isOwnProfile && (
+            <Card className="rounded-lg border-zinc-200 shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500"><Map className="h-4 w-4 text-indigo-500" />Progresso por modulo</h3>
+                <div className="space-y-5">
+                  {modules.map((module) => {
+                    const progress = getModuleProgress(module);
+                    return (
+                      <div key={module.id}>
+                        <div className="mb-2 flex justify-between text-sm font-medium"><span className="text-zinc-700">{module.title}</span><span className="text-zinc-500">{progress}%</span></div>
+                        <div className="h-2.5 w-full overflow-hidden rounded-full bg-zinc-100"><div className={`h-full rounded-full ${progress === 100 ? "bg-green-500" : "bg-indigo-500"}`} style={{ width: `${progress}%` }} /></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
-          <Card className="rounded-lg border-zinc-200 shadow-sm">
-            <CardContent className="p-6">
-              <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500"><Zap className="h-4 w-4 text-yellow-500" />Atividade recente</h3>
-              <div className="space-y-4">
-                {attempts.length ? attempts.map((attempt) => (
-                  <div key={attempt.id} className="flex items-start gap-4">
-                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${attempt.is_correct ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}><Code2 className="h-4 w-4" /></div>
-                    <div><p className="text-sm font-medium text-zinc-900">{attempt.is_correct ? "Acertou" : "Tentou"} um desafio</p><p className="mt-0.5 text-xs text-zinc-500">{new Date(attempt.created_at).toLocaleString("pt-BR")} - {attempt.points_awarded} XP</p></div>
-                  </div>
-                )) : <p className="rounded-lg border border-dashed border-zinc-200 p-4 text-sm font-medium text-zinc-500">Nenhuma tentativa registrada ainda.</p>}
-              </div>
-            </CardContent>
-          </Card>
+          {isOwnProfile && (
+            <Card className="rounded-lg border-zinc-200 shadow-sm">
+              <CardContent className="p-6">
+                <h3 className="mb-6 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-zinc-500"><Zap className="h-4 w-4 text-yellow-500" />Atividade recente</h3>
+                <div className="space-y-4">
+                  {attempts.length ? attempts.map((attempt) => (
+                    <div key={attempt.id} className="flex items-start gap-4">
+                      <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${attempt.is_correct ? "bg-green-50 text-green-600" : "bg-red-50 text-red-600"}`}><Code2 className="h-4 w-4" /></div>
+                      <div><p className="text-sm font-medium text-zinc-900">{attempt.is_correct ? "Acertou" : "Tentou"} um desafio</p><p className="mt-0.5 text-xs text-zinc-500">{new Date(attempt.created_at).toLocaleString("pt-BR")} - {attempt.points_awarded} XP</p></div>
+                    </div>
+                  )) : <p className="rounded-lg border border-dashed border-zinc-200 p-4 text-sm font-medium text-zinc-500">Nenhuma tentativa registrada ainda.</p>}
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </div>
     </div>

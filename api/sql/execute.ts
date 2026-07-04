@@ -1,5 +1,5 @@
 import { SqlValidationError } from "../../src/shared/sql-security.js";
-import { fetchActiveChallenge, recordChallengeAttempt } from "../_lib/challenge-attempts.js";
+import { fetchUnlockedChallenge, recordChallengeAttempt } from "../_lib/challenge-attempts.js";
 import { assertMethod, HttpError, readBody, sendError } from "../_lib/http.js";
 import { runChallengeQuery, runExpectedQuery, sameResult, type QueryResult } from "../_lib/query-runner.js";
 import { authenticateRequest } from "../_lib/supabase-admin.js";
@@ -14,6 +14,7 @@ export default async function handler(req: any, res: any) {
   let challengeId: string | null = null;
   let submittedSql = "";
   let executionTimeMs = 1;
+  let canRecordAttempt = false;
 
   try {
     assertMethod(req, "POST");
@@ -27,8 +28,9 @@ export default async function handler(req: any, res: any) {
     if (!challengeId) throw new HttpError(400, "challenge_id e obrigatorio.");
     if (!submittedSql.trim()) throw new SqlValidationError("Consulta bloqueada: escreva uma query SQL antes de executar.");
 
-    const challenge = await fetchActiveChallenge(challengeId);
-    if (!challenge?.is_active) throw new HttpError(404, "Desafio nao encontrado ou inativo.");
+    const challenge = await fetchUnlockedChallenge(challengeId, user.id);
+    if (!challenge?.is_active) throw new HttpError(403, "Desafio bloqueado para este usuario.");
+    canRecordAttempt = true;
 
     const executionConfig = {
       type: challenge.type,
@@ -59,7 +61,7 @@ export default async function handler(req: any, res: any) {
       message: buildMessage(isCorrect, attempt.points_awarded, attempt.already_completed),
     });
   } catch (error) {
-    if (userId && challengeId && submittedSql) {
+    if (canRecordAttempt && userId && challengeId && submittedSql) {
       await recordChallengeAttempt({
         userId,
         challengeId,

@@ -71,6 +71,39 @@ const MUTATION_BLOCKED_WORDS = [
   "sequence",
 ];
 
+const SETUP_BLOCKED_WORDS = [
+  "begin",
+  "commit",
+  "rollback",
+  "savepoint",
+  "release",
+  "merge",
+  "truncate",
+  "grant",
+  "revoke",
+  "copy",
+  "call",
+  "do",
+  "vacuum",
+  "analyze",
+  "explain analyze",
+  "reset",
+  "listen",
+  "notify",
+  "role",
+  "user",
+  "materialized",
+];
+
+const SETUP_BLOCKED_PATTERNS: Array<[RegExp, string]> = [
+  [/\bcreate\s+(?:database|schema|function|procedure|extension|policy|trigger|role|user|view|materialized\s+view|sequence)\b/i, "CREATE"],
+  [/\balter\s+(?:database|schema|function|procedure|extension|policy|trigger|role|user|view|materialized\s+view|sequence|system)\b/i, "ALTER"],
+  [/\bdrop\s+(?:database|schema|function|procedure|extension|policy|trigger|role|user|view|materialized\s+view|sequence)\b/i, "DROP"],
+  [/\bset\s+(?:role|session\s+authorization)\b/i, "SET"],
+];
+
+const BLOCKED_SCHEMAS = new Set(["pg_catalog", "information_schema"]);
+
 export class SqlValidationError extends Error {
   constructor(message: string) {
     super(message);
@@ -135,6 +168,29 @@ export function validateValidationSql(sql: string) {
   return cleanSql;
 }
 
+export function validateSetupSql(sql: string) {
+  const cleanSql = sanitizeSql(sql);
+  const normalized = normalizeSql(cleanSql);
+
+  if (!normalized) return "";
+  if ((cleanSql.match(/;/g) ?? []).length > 0) {
+    throw new SqlValidationError("Setup bloqueado: a execucao aceita apenas uma statement por vez.");
+  }
+
+  const structuralSql = maskStringLiterals(normalized);
+  const blockedWord = SETUP_BLOCKED_WORDS.find((word) => hasWord(structuralSql, word));
+  if (blockedWord) {
+    throw new SqlValidationError(`Setup bloqueado: ${blockedWord.toUpperCase()} nao e permitido no sandbox de escrita.`);
+  }
+
+  const blockedPattern = SETUP_BLOCKED_PATTERNS.find(([pattern]) => pattern.test(structuralSql));
+  if (blockedPattern) {
+    throw new SqlValidationError(`Setup bloqueado: ${blockedPattern[1]} nao e permitido no sandbox de escrita.`);
+  }
+
+  return cleanSql;
+}
+
 function validateReadOnlySql(cleanSql: string, normalized: string, allowed: Set<string>) {
   if (!normalized.startsWith("select") && !normalized.startsWith("with")) {
     throw new SqlValidationError("Consulta bloqueada: este desafio permite somente SELECT ou WITH.");
@@ -149,6 +205,11 @@ function validateReadOnlySql(cleanSql: string, normalized: string, allowed: Set<
   const tableRefs = getTableRefs(normalized);
   if (!tableRefs.length) {
     throw new SqlValidationError("Consulta bloqueada: informe pelo menos uma tabela em FROM ou JOIN.");
+  }
+
+  const blockedSchema = tableRefs.find((ref) => ref.schema && BLOCKED_SCHEMAS.has(ref.schema));
+  if (blockedSchema) {
+    throw new SqlValidationError(`Consulta bloqueada: o schema "${blockedSchema.schema}" nao esta liberado.`);
   }
 
   const forbiddenSchema = tableRefs.find((ref) => ref.schema && ref.schema !== "challenge_data");
@@ -254,10 +315,22 @@ function getMutationRule(challengeType: ChallengeType) {
 }
 
 export function getTableRefs(sql: string) {
-  return Array.from(sql.matchAll(/\b(?:from|join)\s+((?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*)/g)).map((match) => {
-    const [schema, table] = match[1].includes(".") ? match[1].split(".") : [null, match[1]];
-    return { schema, table: stripSchema(table) };
-  });
+  const refs = new Map<string, { schema: string | null; table: string }>();
+  const structuralSql = maskStringLiterals(sql);
+  const relationPattern = /((?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*)/;
+
+  for (const match of structuralSql.matchAll(/\b(?:from|join)\s+((?:[a-z_][a-z0-9_]*\.)?[a-z_][a-z0-9_]*)/g)) {
+    addTableRef(refs, match[1]);
+  }
+
+  for (const clause of getFromClauses(structuralSql)) {
+    for (const part of splitTopLevelCommas(clause).slice(1)) {
+      const relation = part.trim().match(relationPattern)?.[1];
+      if (relation) addTableRef(refs, relation);
+    }
+  }
+
+  return [...refs.values()];
 }
 
 function hasWord(sql: string, word: string) {
@@ -266,6 +339,63 @@ function hasWord(sql: string, word: string) {
 
 function maskStringLiterals(sql: string) {
   return sql.replace(/'([^']|'')*'/g, "''");
+}
+
+function getFromClauses(sql: string) {
+  const clauses: string[] = [];
+  const fromRegex = /\bfrom\b/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = fromRegex.exec(sql))) {
+    const start = match.index + match[0].length;
+    let depth = 0;
+    let end = sql.length;
+
+    for (let index = start; index < sql.length; index += 1) {
+      const char = sql[index];
+      if (char === "(") depth += 1;
+      if (char === ")") depth = Math.max(0, depth - 1);
+
+      if (depth === 0 && isClauseBoundary(sql, index)) {
+        end = index;
+        break;
+      }
+    }
+
+    clauses.push(sql.slice(start, end));
+  }
+
+  return clauses;
+}
+
+function splitTopLevelCommas(value: string) {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    const char = value[index];
+    if (char === "(") depth += 1;
+    if (char === ")") depth = Math.max(0, depth - 1);
+    if (char === "," && depth === 0) {
+      parts.push(value.slice(start, index));
+      start = index + 1;
+    }
+  }
+
+  parts.push(value.slice(start));
+  return parts;
+}
+
+function isClauseBoundary(sql: string, index: number) {
+  const rest = sql.slice(index);
+  return /^(?:\s+where\b|\s+group\s+by\b|\s+having\b|\s+order\s+by\b|\s+limit\b|\s+offset\b|\s+fetch\b|\s+union\b|\s+except\b|\s+intersect\b|$)/.test(rest);
+}
+
+function addTableRef(refs: Map<string, { schema: string | null; table: string }>, rawRef: string) {
+  const [schema, table] = rawRef.includes(".") ? rawRef.split(".") : [null, rawRef];
+  const ref = { schema, table: stripSchema(table) };
+  refs.set(`${ref.schema ?? ""}.${ref.table}`, ref);
 }
 
 function getCteNames(sql: string) {

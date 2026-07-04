@@ -34,6 +34,22 @@ export async function fetchActiveChallenge(challengeId: string) {
   return rows[0] ?? null;
 }
 
+export async function fetchUnlockedChallenge(challengeId: string, userId: string) {
+  const { rows } = await queryAdminDb<DbChallenge>(
+    `
+      select id, title, type, expected_sql, allowed_tables, setup_sql, validation_sql, base_points, is_active
+      from public.challenges
+      where id = $1
+        and is_active = true
+        and private.is_challenge_unlocked($2::uuid, id)
+      limit 1
+    `,
+    [challengeId, userId],
+  );
+
+  return rows[0] ?? null;
+}
+
 export async function recordChallengeAttempt(input: {
   userId: string;
   challengeId: string;

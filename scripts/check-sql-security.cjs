@@ -24,6 +24,7 @@ vm.runInNewContext(compiled.outputText, {
 const {
   SqlValidationError,
   validateChallengeSql,
+  validateSetupSql,
   validateValidationSql,
 } = moduleScope.exports;
 
@@ -39,6 +40,7 @@ function assertBlocked(sql, tables, type, expectedMessage) {
 }
 
 assertAllowed("SELECT name FROM products", ["products"]);
+assertAllowed("SELECT customers.full_name, orders.order_number FROM customers JOIN orders ON orders.customer_id = customers.id", ["customers", "orders"]);
 assertAllowed("INSERT INTO products (name) VALUES ('Monitor')", ["products"], "insert_rows");
 assertAllowed("UPDATE products SET price = 1350 WHERE sku = 'MON-27'", ["products"], "update_rows");
 assertAllowed("DELETE FROM products WHERE sku = 'BOOK-SQL'", ["products"], "delete_rows");
@@ -47,6 +49,8 @@ assertAllowed("ALTER TABLE products ADD COLUMN restock_date date", ["products"],
 assertAllowed("DROP TABLE staging_imports", ["staging_imports"], "drop_table");
 
 assertBlocked("INSERT INTO products (name) VALUES ('Monitor')", ["products"], "free_select", "SELECT ou WITH");
+assertBlocked("SELECT r.rolname FROM customers c, pg_roles r", ["customers"], "free_select", "pg_roles");
+assertBlocked("SELECT c.id FROM customers c, information_schema.tables t", ["customers"], "free_select", "information_schema");
 assertBlocked("UPDATE products SET price = 1350", ["products"], "update_rows", "UPDATE deve usar WHERE");
 assertBlocked("DELETE FROM products", ["products"], "delete_rows", "DELETE deve usar WHERE");
 assertBlocked("DROP TABLE public.products", ["products"], "drop_table", "schema explicito");
@@ -56,5 +60,12 @@ assertBlocked("INSERT INTO orders (id) VALUES ('1')", ["products"], "insert_rows
 
 assert.equal(validateValidationSql("SELECT count(*)::int AS total FROM products"), "SELECT count(*)::int AS total FROM products");
 assert.throws(() => validateValidationSql("UPDATE products SET price = 1"), /SELECT ou WITH/);
+
+assert.equal(validateSetupSql("INSERT INTO products (name) VALUES ('Monitor')"), "INSERT INTO products (name) VALUES ('Monitor')");
+assert.equal(validateSetupSql("CREATE TABLE staging_imports (id uuid PRIMARY KEY)"), "CREATE TABLE staging_imports (id uuid PRIMARY KEY)");
+assert.throws(() => validateSetupSql("INSERT INTO products (name) VALUES ('Monitor'); COMMIT"), /uma statement/);
+assert.throws(() => validateSetupSql("COMMIT"), /COMMIT/);
+assert.throws(() => validateSetupSql("ROLLBACK"), /ROLLBACK/);
+assert.throws(() => validateSetupSql("CREATE SCHEMA unsafe"), /CREATE/);
 
 console.log("sql-security checks passed");
